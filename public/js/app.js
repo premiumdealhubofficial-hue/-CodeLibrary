@@ -217,7 +217,7 @@ function renderBundle() {
   // 1. Home page bundle / collection amount
   const heroBundlePriceEl = document.getElementById('hero-bundle-price');
   if (heroBundlePriceEl) {
-    heroBundlePriceEl.textContent = `(${bundlePriceFormatted})`;
+    heroBundlePriceEl.textContent = bundlePriceFormatted;
   }
 
   // 2. Bundle page top price & Card Elements
