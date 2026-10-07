@@ -193,8 +193,38 @@ async function fetchBundle() {
   try {
     const data = await api('/api/bundles/complete-programming-bundle');
     state.bundle = data;
+    renderBundle();
   } catch (err) {
     console.warn('Could not fetch bundle details:', err);
+  }
+}
+
+function renderBundle() {
+  if (!state.bundle) return;
+  const bundleCard = document.querySelector('.bundle-card');
+  if (!bundleCard) return;
+
+  const currentPriceEl = bundleCard.querySelector('.current-price');
+  if (currentPriceEl && state.bundle.price != null) {
+    currentPriceEl.textContent = formatCurrency(state.bundle.price);
+  }
+
+  const oldPriceEl = bundleCard.querySelector('.old-price');
+  const saveBadgeEl = bundleCard.querySelector('.save-badge');
+  if (oldPriceEl && Array.isArray(state.books) && state.books.length > 0) {
+    const totalOriginal = state.books.reduce((acc, b) => acc + (b.price || 0), 0);
+    if (totalOriginal > 0) {
+      oldPriceEl.textContent = formatCurrency(totalOriginal);
+      if (saveBadgeEl && state.bundle.price) {
+        const discountPercent = Math.round(((totalOriginal - state.bundle.price) / totalOriginal) * 100);
+        saveBadgeEl.textContent = `Save ${discountPercent}%`;
+      }
+    }
+  }
+
+  const bundleTitleEl = bundleCard.querySelector('.bundle-title');
+  if (bundleTitleEl && state.bundle.title) {
+    bundleTitleEl.textContent = state.bundle.title;
   }
 }
 
