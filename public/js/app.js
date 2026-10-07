@@ -28,16 +28,18 @@ const categoryMeta = {
 // API Helper
 async function api(path, options = {}) {
   const defaultOptions = {
-    headers: { 'Content-Type': 'application/json' },
     credentials: 'same-origin'
   };
+
+  const isMutation = options.method && options.method.toUpperCase() !== 'GET' && options.method.toUpperCase() !== 'HEAD';
+  const defaultHeaders = isMutation ? { 'Content-Type': 'application/json' } : {};
 
   if (options.body && typeof options.body !== 'string') {
     options.body = JSON.stringify(options.body);
   }
 
   const merged = { ...defaultOptions, ...options };
-  merged.headers = { ...defaultOptions.headers, ...options.headers };
+  merged.headers = { ...defaultHeaders, ...(options.headers || {}) };
 
   try {
     const response = await fetch(path, merged);
@@ -177,7 +179,17 @@ document.getElementById('btn-theme-toggle')?.addEventListener('click', toggleThe
 // Data Fetching
 async function fetchBooks() {
   try {
-    const data = await api('/api/books');
+    let data;
+    try {
+      data = await api('/api/books');
+    } catch (e) {
+      const res = await fetch('/api/books');
+      if (res.ok) {
+        data = await res.json();
+      } else {
+        throw e;
+      }
+    }
     state.books = Array.isArray(data) ? data : [];
     renderBooks();
     renderBundle();
