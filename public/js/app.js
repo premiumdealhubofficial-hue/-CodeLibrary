@@ -180,6 +180,7 @@ async function fetchBooks() {
     const data = await api('/api/books');
     state.books = Array.isArray(data) ? data : [];
     renderBooks();
+    renderBundle();
   } catch (err) {
     console.error('Failed to load books:', err);
     const grid = document.getElementById('books-grid');
@@ -191,9 +192,19 @@ async function fetchBooks() {
 
 async function fetchBundle() {
   try {
-    const data = await api('/api/bundles/complete-programming-bundle');
-    state.bundle = data;
-    renderBundle();
+    let data;
+    try {
+      data = await api('/api/bundles/complete-programming-bundle');
+    } catch (e) {
+      const all = await api('/api/bundles');
+      if (Array.isArray(all) && all.length > 0) {
+        data = all.find(b => b.slug === 'complete-programming-bundle') || all[0];
+      }
+    }
+    if (data) {
+      state.bundle = data;
+      renderBundle();
+    }
   } catch (err) {
     console.warn('Could not fetch bundle details:', err);
   }
@@ -215,8 +226,8 @@ function renderBundle() {
     const totalOriginal = state.books.reduce((acc, b) => acc + (b.price || 0), 0);
     if (totalOriginal > 0) {
       oldPriceEl.textContent = formatCurrency(totalOriginal);
-      if (saveBadgeEl && state.bundle.price) {
-        const discountPercent = Math.round(((totalOriginal - state.bundle.price) / totalOriginal) * 100);
+      if (saveBadgeEl && state.bundle.price != null) {
+        const discountPercent = Math.max(0, Math.round(((totalOriginal - state.bundle.price) / totalOriginal) * 100));
         saveBadgeEl.textContent = `Save ${discountPercent}%`;
       }
     }
@@ -517,8 +528,8 @@ window.addToCart = function(id, type = 'book') {
     state.cart = [{
       id: state.bundle?.id || 'bundle',
       type: 'bundle',
-      title: 'Complete Programming Bundle (All 19 eBooks)',
-      price: state.bundle?.price || 39900
+      title: state.bundle?.title || 'Complete Programming Bundle (All 19 eBooks)',
+      price: state.bundle?.price != null ? state.bundle.price : 0
     }];
     showToast('Complete Programming Bundle added to cart!', 'success');
   } else {
@@ -769,8 +780,8 @@ window.buyNow = async function(id, type = 'book') {
     state.cart = [{
       id: state.bundle?.id || 'bundle',
       type: 'bundle',
-      title: 'Complete Programming Bundle (All 19 eBooks)',
-      price: state.bundle?.price || 39900
+      title: state.bundle?.title || 'Complete Programming Bundle (All 19 eBooks)',
+      price: state.bundle?.price != null ? state.bundle.price : 0
     }];
   } else {
     const book = state.books.find(b => b.id === id || b.slug === id);
