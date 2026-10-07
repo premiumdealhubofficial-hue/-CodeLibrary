@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeLibrary — Secure Admin Panel</title>
+  <link rel="stylesheet" href="/css/admin.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- Admin Login Screen -->
+  <div id="admin-login">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo"><i class="fas fa-shield-alt"></i></div>
+        <h1>CodeLibrary</h1>
+        <p class="login-subtitle">Secure Admin Management Portal</p>
+      </div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="login-email"><i class="fas fa-envelope"></i> Admin Email / Username</label>
+          <input type="text" id="login-email" placeholder="admin@codelibrary.in" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="login-password"><i class="fas fa-lock"></i> Password</label>
+          <input type="password" id="login-password" placeholder="••••••••••••" required autocomplete="current-password">
+        </div>
+        <div id="totp-field" class="form-group" style="display:none">
+          <label for="login-totp"><i class="fas fa-key"></i> 2FA Authenticator Code</label>
+          <input type="text" id="login-totp" placeholder="6-digit code" maxlength="6" pattern="[0-9]{6}">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="btn-admin-login">
+          <span>Sign In to Dashboard</span> <i class="fas fa-arrow-right"></i>
+        </button>
+        <p id="login-error" class="text-danger"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin Dashboard Layout -->
+  <div id="admin-dashboard" style="display:none">
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h2><i class="fas fa-terminal"></i> CodeLibrary</h2>
+        <span class="admin-badge">Admin</span>
+      </div>
+      <nav id="sidebar-nav">
+        <a href="#" data-section="dashboard" class="active"><i class="fas fa-chart-line"></i> Dashboard</a>
+        <a href="#" data-section="books"><i class="fas fa-book"></i> Books (19)</a>
+        <a href="#" data-section="bundles"><i class="fas fa-layer-group"></i> Bundles</a>
+        <a href="#" data-section="orders"><i class="fas fa-shopping-cart"></i> Orders</a>
+        <a href="#" data-section="customers"><i class="fas fa-users"></i> Customers</a>
+        <a href="#" data-section="coupons"><i class="fas fa-ticket-alt"></i> Discount Codes</a>
+        <a href="#" data-section="contacts"><i class="fas fa-envelope"></i> Messages</a>
+        <a href="#" data-section="audit"><i class="fas fa-history"></i> Audit Log</a>
+        <a href="#" data-section="settings"><i class="fas fa-cog"></i> Settings & 2FA</a>
+      </nav>
+      <div class="sidebar-footer">
+        <a href="/" target="_blank" class="btn btn-outline btn-block"><i class="fas fa-external-link-alt"></i> View Store</a>
+        <button id="admin-logout" class="btn btn-danger btn-block"><i class="fas fa-sign-out-alt"></i> Logout</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="admin-main">
+      <header id="admin-header">
+        <div class="header-left">
+          <button id="sidebar-toggle" aria-label="Toggle Sidebar"><i class="fas fa-bars"></i></button>
+          <h1 id="page-title">Dashboard</h1>
+        </div>
+        <div class="header-right-group">
+          <button id="admin-theme-toggle" class="theme-toggle-btn" aria-label="Toggle Light/Dark Mode" title="Toggle Light/Dark Mode">
+            <i class="fas fa-sun theme-icon-light"></i>
+            <i class="fas fa-moon theme-icon-dark"></i>
+          </button>
+          <div class="admin-user-info">
+            <span class="admin-status-dot"></span>
+            <span id="admin-name">Admin</span>
+            <i class="fas fa-user-shield"></i>
+          </div>
+        </div>
+      </header>
+
+      <div id="admin-content">
+        <!-- Dashboard Section -->
+        <section id="section-dashboard" class="content-section">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-1"><i class="fas fa-rupee-sign"></i></div>
+              <div class="stat-details">
+                <h3>Total Revenue</h3>
+                <p id="stat-total-sales">₹0</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-2"><i class="fas fa-shopping-bag"></i></div>
+              <div class="stat-details">
+                <h3>Total Orders</h3>
+                <p id="stat-total-orders">0</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-3"><i class="fas fa-users"></i></div>
+              <div class="stat-details">
+                <h3>Customers</h3>
+                <p id="stat-total-customers">0</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-4"><i class="fas fa-book"></i></div>
+              <div class="stat-details">
+                <h3>Single eBooks Sold</h3>
+                <p id="stat-ebooks-sold">0</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-5"><i class="fas fa-layer-group"></i></div>
+              <div class="stat-details">
+                <h3>Bundle Sales</h3>
+                <p id="stat-bundle-sales">0</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-6"><i class="fas fa-calendar-alt"></i></div>
+              <div class="stat-details">
+                <h3>Monthly Revenue</h3>
+                <p id="stat-monthly-revenue">₹0</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="chart-container card">
+              <div class="card-header">
+                <h2><i class="fas fa-chart-area"></i> Revenue Trend (₹)</h2>
+                <div class="chart-controls">
+                  <select id="chart-timeframe" class="form-control" style="width: auto; padding: 0.35rem 0.75rem; font-size: 0.85rem; cursor: pointer;">
+                    <option value="6m" selected>Last 6 Months</option>
+                    <option value="12m">Last 12 Months</option>
+                    <option value="30d">Last 30 Days (Daily)</option>
+                    <option value="all">All Time (Monthly)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="chart-wrapper">
+                <canvas id="salesChart"></canvas>
+              </div>
+            </div>
+            <div class="recent-orders-container card">
+              <div class="card-header">
+                <h2><i class="fas fa-clock"></i> Recent Orders</h2>
+              </div>
+              <div class="table-responsive">
+                <table class="data-table" id="recent-orders-table">
+                  <thead>
+                    <tr>
+                      <th>Order ID</th>
+                      <th>Customer</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Books Management Section -->
+        <section id="section-books" class="content-section" style="display:none">
+          <div class="section-header">
+            <div>
+              <h2>Manage eBooks</h2>
+              <p class="section-desc">View, edit prices, descriptions, or add new programming books.</p>
+            </div>
+            <button id="btn-add-book" class="btn btn-primary"><i class="fas fa-plus"></i> Add New Book</button>
+          </div>
+          <div class="card table-responsive">
+            <table class="data-table" id="books-table">
+              <thead>
+                <tr>
+                  <th style="width: 60px;">Cover</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Rating</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Bundles Management Section -->
+        <section id="section-bundles" class="content-section" style="display:none">
+          <div class="section-header">
+            <div>
+              <h2>Manage Bundles</h2>
+              <p class="section-desc">Manage bundle pricing, active status, and included titles.</p>
+            </div>
+          </div>
+          <div id="bundles-container" class="bundles-grid">
+            <!-- Bundles injected via JS -->
+          </div>
+        </section>
+
+        <!-- Orders Management Section -->
+        <section id="section-orders" class="content-section" style="display:none">
+          <div class="section-header">
+            <div>
+              <h2>Orders Management</h2>
+              <p class="section-desc">View customer purchases, payment verification status, and transaction IDs.</p>
+            </div>
+            <div class="filters">
+              <select id="order-status-filter" class="form-control">
+                <option value="">All Statuses</option>
+                <option value="Paid">Paid</option>
+                <option value="Pending">Pending</option>
+                <option value="Failed">Failed</option>
+              </select>
+            </div>
+          </div>
+          <div class="card table-responsive">
+            <table class="data-table" id="orders-table">
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Customer</th>
+                  <th>Product</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Payment ID</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Customers Section -->
+        <section id="section-customers" class="content-section" style="display:none">
+          <div class="section-header">
+            <div>
+              <h2>Registered Customers</h2>
+              <p class="section-desc">Customer accounts, total spend, and eBook license access.</p>
+            </div>
+          </div>
+          <div class="card table-responsive">
+            <table class="data-table" id="customers-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Orders</th>
+                  <th>eBooks Owned</th>
+                  <th>Total Spent</th>
+                  <th>Joined Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Discount Codes / Coupons Section -->
+        <section id="section-coupons" class="content-section" style="display:none">
+          <div class="section-header">
+            <div>
+              <h2>Discount & Coupon Codes</h2>
+              <p class="section-desc">Create, manage, and track promo coupons for customer checkout.</p>
+            </div>
+            <button id="btn-add-coupon" class="btn btn-primary"><i class="fas fa-plus"></i> Create New Coupon</button>
+          </div>
+
+          <div class="stats-grid" style="margin-bottom: 1.5rem;">
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-1"><i class="fas fa-tags"></i></div>
+              <div class="stat-details">
+                <h3>Total Coupons</h3>
+                <p id="stat-total-coupons">0</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-2"><i class="fas fa-check-circle"></i></div>
+              <div class="stat-details">
+                <h3>Active Coupons</h3>
+                <p id="stat-active-coupons">0</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-3"><i class="fas fa-receipt"></i></div>
+              <div class="stat-details">
+                <h3>Total Redemptions</h3>
+                <p id="stat-coupon-uses">0</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon stat-accent-4"><i class="fas fa-rupee-sign"></i></div>
+              <div class="stat-details">
+                <h3>Total Discount Given</h3>
+                <p id="stat-discount-given">₹0</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card table-responsive">
+            <table class="data-table" id="coupons-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Discount</th>
+                  <th>Min Order</th>
+                  <th>Usage / Limit</th>
+                  <th>Expiry</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Contact Messages Section -->
+        <section id="section-contacts" class="content-section" style="display:none">
+          <div class="section-header">
+            <div>
+              <h2>Customer Support Messages</h2>
+              <p class="section-desc">Inquiries submitted through the public contact form.</p>
+            </div>
+          </div>
+          <div class="card table-responsive">
+            <table class="data-table" id="contacts-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Message Preview</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Audit Log Section -->
+        <section id="section-audit" class="content-section" style="display:none">
+          <div class="section-header">
+            <div>
+              <h2>Security Audit Log</h2>
+              <p class="section-desc">Immutable log of admin logins, book updates, and critical system events.</p>
+            </div>
+          </div>
+          <div class="card table-responsive">
+            <table class="data-table" id="audit-table">
+              <thead>
+                <tr>
+                  <th>Date & Time</th>
+                  <th>Admin</th>
+                  <th>Action</th>
+                  <th>Entity</th>
+                  <th>Details</th>
+                  <th>IP Address</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="section-settings" class="content-section" style="display:none">
+          <div class="section-header">
+            <div>
+              <h2>Admin Settings & Security</h2>
+              <p class="section-desc">Configure account security and Two-Factor Authentication (2FA).</p>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <div class="card">
+              <h3><i class="fas fa-user-circle"></i> Admin Profile</h3>
+              <form id="profile-form" style="margin-top: 1rem;">
+                <div class="form-group">
+                  <label>Username</label>
+                  <input type="text" id="setting-name" class="form-control" disabled>
+                </div>
+                <div class="form-group">
+                  <label>Admin Email</label>
+                  <input type="email" id="setting-email" class="form-control" disabled>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <h3><i class="fas fa-shield-alt"></i> Two-Factor Authentication (2FA)</h3>
+              <p style="margin: 0.5rem 0 1rem; color: var(--admin-text-secondary);">Protect your admin panel with Google Authenticator, Authy, or any TOTP app.</p>
+              <div id="2fa-status-container">
+                <p style="margin-bottom: 1rem;">Current Status: <span id="2fa-status-badge" class="badge">Checking...</span></p>
+                <button id="btn-setup-2fa" class="btn btn-primary" style="display:none"><i class="fas fa-qrcode"></i> Setup 2FA</button>
+                <button id="btn-disable-2fa" class="btn btn-danger" style="display:none"><i class="fas fa-lock-open"></i> Disable 2FA</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Contact & Social Media Settings Form -->
+          <div class="card" style="margin-top: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;">
+              <div>
+                <h3 style="display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem;">
+                  <i class="fas fa-headset" style="color: var(--admin-accent-1);"></i> Contact & Social Media Settings
+                </h3>
+                <p style="color: var(--admin-text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">
+                  Manage support helpline, WhatsApp number, email addresses, and active social media links.
+                </p>
+              </div>
+              <button type="submit" form="contact-settings-form" class="btn btn-primary" id="btn-save-contact-settings">
+                <i class="fas fa-save"></i> Save Settings
+              </button>
+            </div>
+
+            <div id="contact-settings-alert" style="display: none; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1.25rem; font-size: 0.9rem;"></div>
+
+            <form id="contact-settings-form">
+              <!-- Contact Information Group -->
+              <h4 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--admin-border); display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-phone-alt" style="color: #3b82f6;"></i> Customer Contact & Support
+              </h4>
+              <div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="setting-contact-phone">Support / Helpline Number</label>
+                  <input type="text" id="setting-contact-phone" class="form-control" placeholder="+91 7808202338">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="setting-contact-whatsapp"><i class="fab fa-whatsapp" style="color: #25D366;"></i> WhatsApp Number</label>
+                  <input type="text" id="setting-contact-whatsapp" class="form-control" placeholder="+91 7808202338">
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 1rem;">
+                <label for="setting-whatsapp-message"><i class="fab fa-whatsapp" style="color: #25D366;"></i> WhatsApp Pre-filled Message</label>
+                <input type="text" id="setting-whatsapp-message" class="form-control" placeholder="Hello CodeLibrary Support, I need help with my eBook/order.">
+              </div>
+
+              <div class="form-row" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="setting-support-email"><i class="fas fa-envelope"></i> Support Email</label>
+                  <input type="email" id="setting-support-email" class="form-control" placeholder="support@codelibrary.in">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="setting-business-email"><i class="fas fa-briefcase"></i> Business Email</label>
+                  <input type="email" id="setting-business-email" class="form-control" placeholder="contact@codelibrary.in">
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label for="setting-contact-address"><i class="fas fa-map-marker-alt"></i> Address / Location (Optional)</label>
+                <input type="text" id="setting-contact-address" class="form-control" placeholder="e.g. Mumbai, India">
+              </div>
+
+              <!-- Social Media Settings Group -->
+              <h4 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--admin-border); display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-share-alt" style="color: #8b5cf6;"></i> Social Media Channels
+              </h4>
+              <p style="font-size: 0.85rem; color: var(--admin-text-secondary); margin-bottom: 1rem;">
+                Toggle the switch to enable or disable each social media link on the website storefront.
+              </p>
+
+              <div class="social-settings-grid" style="display: flex; flex-direction: column; gap: 0.85rem;">
+                <!-- WhatsApp -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-whatsapp" style="color: #25D366; font-size: 1.2rem;"></i> WhatsApp
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-whatsapp-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-whatsapp-url" class="form-control" placeholder="https://wa.me/917808202338" style="flex: 1;">
+                </div>
+
+                <!-- Instagram -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-instagram" style="color: #E1306C; font-size: 1.2rem;"></i> Instagram
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-instagram-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-instagram-url" class="form-control" placeholder="https://instagram.com/yourhandle" style="flex: 1;">
+                </div>
+
+                <!-- Facebook -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-facebook" style="color: #1877F2; font-size: 1.2rem;"></i> Facebook
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-facebook-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-facebook-url" class="form-control" placeholder="https://facebook.com/yourpage" style="flex: 1;">
+                </div>
+
+                <!-- YouTube -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-youtube" style="color: #FF0000; font-size: 1.2rem;"></i> YouTube
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-youtube-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-youtube-url" class="form-control" placeholder="https://youtube.com/@yourchannel" style="flex: 1;">
+                </div>
+
+                <!-- X / Twitter -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-x-twitter" style="font-size: 1.2rem;"></i> X (Twitter)
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-twitter-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-twitter-url" class="form-control" placeholder="https://x.com/yourhandle" style="flex: 1;">
+                </div>
+
+                <!-- Telegram -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-telegram" style="color: #26A5E4; font-size: 1.2rem;"></i> Telegram
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-telegram-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-telegram-url" class="form-control" placeholder="https://t.me/yourchannel" style="flex: 1;">
+                </div>
+
+                <!-- LinkedIn -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-linkedin" style="color: #0A66C2; font-size: 1.2rem;"></i> LinkedIn
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-linkedin-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-linkedin-url" class="form-control" placeholder="https://linkedin.com/company/yourcompany" style="flex: 1;">
+                </div>
+
+                <!-- Pinterest -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-pinterest" style="color: #E60023; font-size: 1.2rem;"></i> Pinterest
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-pinterest-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-pinterest-url" class="form-control" placeholder="https://pinterest.com/yourprofile" style="flex: 1;">
+                </div>
+
+                <!-- Discord -->
+                <div class="social-setting-row" style="display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: var(--admin-bg-secondary); border: 1px solid var(--admin-border); border-radius: 8px;">
+                  <div style="width: 140px; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-discord" style="color: #5865F2; font-size: 1.2rem;"></i> Discord
+                  </div>
+                  <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0;">
+                    <input type="checkbox" id="setting-social-discord-enabled">
+                    <span class="slider round"></span>
+                  </label>
+                  <input type="url" id="setting-social-discord-url" class="form-control" placeholder="https://discord.gg/yourserver" style="flex: 1;">
+                </div>
+              </div>
+
+              <div style="margin-top: 1.5rem; text-align: right;">
+                <button type="submit" class="btn btn-primary" id="btn-save-contact-settings-bottom">
+                  <i class="fas fa-save"></i> Save All Settings
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Book Add/Edit Modal -->
+  <div id="book-modal" class="admin-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="book-modal-title">Add New Book</h2>
+        <button class="close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="book-form">
+          <input type="hidden" id="book-id">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="book-title">Title</label>
+              <input type="text" id="book-title" class="form-control" required placeholder="e.g. Modern React.js">
+            </div>
+            <div class="form-group">
+              <label for="book-slug">URL Slug</label>
+              <input type="text" id="book-slug" class="form-control" required placeholder="e.g. reactjs">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="book-price">Price (in ₹)</label>
+              <input type="number" id="book-price" class="form-control" required min="0" step="1" placeholder="99">
+            </div>
+            <div class="form-group">
+              <label for="book-category">Category</label>
+              <select id="book-category" class="form-control" required>
+                <option value="web-development">Web Development</option>
+                <option value="programming-languages">Programming Languages</option>
+                <option value="data-science">Data Science</option>
+                <option value="database">Database</option>
+                <option value="ai">AI</option>
+                <option value="computer-science">Computer Science</option>
+                <option value="mobile-development">Mobile Development</option>
+                <option value="productivity">Productivity</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>eBook Cover Image</label>
+            <div class="cover-upload-container">
+              <div class="cover-preview-box" id="cover-preview-box">
+                <img id="book-cover-preview" src="" alt="Cover Preview" style="display: none;">
+                <div id="book-cover-placeholder-preview" class="cover-placeholder-preview">
+                  <i class="fas fa-image"></i>
+                  <span>No cover uploaded</span>
+                  <small class="text-secondary">Default gradient will be shown</small>
+                </div>
+              </div>
+              <div class="cover-upload-inputs">
+                <div class="file-upload-wrapper">
+                  <label for="book-cover-file" class="btn btn-sm btn-outline">
+                    <i class="fas fa-upload"></i> Choose Image File (PNG, JPG, WebP)
+                  </label>
+                  <input type="file" id="book-cover-file" accept="image/png, image/jpeg, image/webp, image/svg+xml" style="display: none;">
+                  <button type="button" id="btn-remove-cover" class="btn btn-sm btn-danger" style="display: none;">
+                    <i class="fas fa-trash-alt"></i> Remove
+                  </button>
+                </div>
+                <div class="form-group" style="margin-top: 0.75rem; margin-bottom: 0;">
+                  <label for="book-cover-url" style="font-size: 0.78rem;">Or specify Cover Image URL / Path:</label>
+                  <input type="text" id="book-cover-url" class="form-control" placeholder="e.g. /uploads/covers/react.png or https://...">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="book-filename">eBook PDF Filename</label>
+            <input type="text" id="book-filename" class="form-control" required placeholder="reactjs.pdf">
+          </div>
+          <div class="form-group">
+            <label for="book-google-drive-link"><i class="fab fa-google-drive" style="color: #4285F4; margin-right: 4px;"></i> Google Drive PDF Link</label>
+            <input type="url" id="book-google-drive-link" class="form-control" placeholder="https://drive.google.com/file/d/.../view?usp=sharing">
+            <small class="text-secondary" style="font-size: 0.78rem; display: block; margin-top: 0.3rem;">
+              Securely delivered to verified buyers in My Library when clicking "Download PDF".
+            </small>
+          </div>
+          <div class="form-group">
+            <label for="book-short-desc">Short Description</label>
+            <input type="text" id="book-short-desc" class="form-control" required placeholder="One-sentence hook for catalog card">
+          </div>
+          <div class="form-group">
+            <label for="book-desc">Full Description</label>
+            <textarea id="book-desc" class="form-control" rows="3" required placeholder="Detailed overview of what the eBook covers"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="book-learn">What You'll Learn (One point per line)</label>
+            <textarea id="book-learn" class="form-control" rows="4" placeholder="Understand component architecture&#10;Master hooks and lifecycle&#10;Build 3 fullstack projects"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="book-topics">Topics Covered (One tag per line)</label>
+            <textarea id="book-topics" class="form-control" rows="3" placeholder="Hooks&#10;Context API&#10;Performance&#10;Routing"></textarea>
+          </div>
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="book-published" checked>
+            <label for="book-published">Published & Visible in Store</label>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-outline close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-book">Save eBook</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Coupon Modal -->
+  <div id="coupon-modal" class="admin-modal">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h2 id="coupon-modal-title">Create Discount Code</h2>
+        <button class="close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="coupon-form">
+          <input type="hidden" id="coupon-id">
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="coupon-code">Coupon Code *</label>
+              <input type="text" id="coupon-code" class="form-control" placeholder="e.g. SUMMER50" required style="text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="coupon-discount-type">Discount Type *</label>
+              <select id="coupon-discount-type" class="form-control" required>
+                <option value="percentage">Percentage (%)</option>
+                <option value="fixed">Fixed Amount (₹)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="coupon-discount-value">Discount Value *</label>
+              <input type="number" id="coupon-discount-value" class="form-control" placeholder="e.g. 20 (for 20%) or 50 (for ₹50)" min="1" step="any" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="coupon-max-discount">Max Discount Cap (₹)</label>
+              <input type="number" id="coupon-max-discount" class="form-control" placeholder="Optional cap for %" min="0" step="any">
+            </div>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="coupon-min-order">Min Order Amount (₹)</label>
+              <input type="number" id="coupon-min-order" class="form-control" placeholder="0" min="0" step="any" value="0">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="coupon-usage-limit">Global Usage Limit</label>
+              <input type="number" id="coupon-usage-limit" class="form-control" placeholder="Optional (unlimited)" min="1">
+            </div>
+          </div>
+
+          <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="coupon-per-customer">Per-Customer Limit</label>
+              <input type="number" id="coupon-per-customer" class="form-control" placeholder="1" min="1" value="1">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="coupon-expiry-date">Expiry Date & Time</label>
+              <input type="datetime-local" id="coupon-expiry-date" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+            <input type="checkbox" id="coupon-is-active" checked style="width: auto; margin: 0;">
+            <label for="coupon-is-active" style="margin: 0; font-weight: 600; cursor: pointer;">Coupon is Active & Redeemable</label>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+            <button type="button" class="btn btn-outline close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-coupon">Save Coupon</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order Detail Modal -->
+  <div id="order-modal" class="admin-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Order Details <span id="modal-order-id" class="text-secondary"></span></h2>
+        <button class="close-modal">&times;</button>
+      </div>
+      <div class="modal-body" id="order-detail-content"></div>
+      <div class="modal-footer">
+        <label for="modal-update-order-status" style="margin-right: 0.5rem; font-weight: bold;">Change Status:</label>
+        <select id="modal-update-order-status" class="form-control" style="width: auto; display: inline-block;">
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+          <option value="failed">Failed</option>
+          <option value="refunded">Refunded</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <button id="btn-update-order" class="btn btn-primary">Update Status</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customer Detail Modal -->
+  <div id="customer-modal" class="admin-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Customer Profile & Licenses</h2>
+        <button class="close-modal">&times;</button>
+      </div>
+      <div class="modal-body" id="customer-detail-content"></div>
+    </div>
+  </div>
+
+  <!-- 2FA Setup Modal -->
+  <div id="setup-2fa-modal" class="admin-modal">
+    <div class="modal-content" style="max-width: 420px; text-align: center;">
+      <div class="modal-header">
+        <h2>Setup Two-Factor 2FA</h2>
+        <button class="close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--admin-text-secondary); font-size: 0.9rem;">
+          Scan this QR code with Google Authenticator or Authy app on your phone:
+        </p>
+        <img id="qr-code-img" src="" alt="2FA QR Code" style="margin: 15px auto; max-width: 180px; border-radius: 8px; display: block; background: #fff; padding: 8px;">
+        <p id="secret-key-display" style="font-family: monospace; font-size: 0.85rem; color: var(--admin-accent); word-break: break-all; margin-bottom: 1rem;"></p>
+        <div class="form-group">
+          <label for="verify-2fa-code" style="font-size: 0.9rem;">Enter the 6-digit code from your app:</label>
+          <input type="text" id="verify-2fa-code" class="form-control" placeholder="123456" maxlength="6" style="text-align: center; font-size: 1.25rem; letter-spacing: 4px;">
+        </div>
+        <button id="btn-verify-2fa" class="btn btn-primary btn-block">Verify & Enable 2FA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

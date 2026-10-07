@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeLibrary — Learn Programming. Build Your Future.</title>
+    <meta name="description" content="High-quality programming eBooks with practical examples, clear explanations and step-by-step learning. Master Web Development, Python, Java, DSA, AI, and more.">
+    <meta name="keywords" content="programming ebooks, learn coding, web development books, python ebook, dsa ebook, AI programming, computer science books">
+    <meta property="og:title" content="CodeLibrary — Learn Programming. Build Your Future.">
+    <meta property="og:description" content="Premium programming eBooks with practical examples, clear explanations, and instant digital access.">
+    <meta property="og:type" content="website">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Sticky Navigation Header -->
+    <header id="main-header">
+        <div class="container header-container">
+            <a href="#hero" class="logo">
+                <i class="fas fa-terminal"></i>
+                <span>CodeLibrary</span>
+            </a>
+            
+            <nav class="main-nav" id="main-nav">
+                <ul class="nav-links">
+                    <li><a href="#hero" class="active">Home</a></li>
+                    <li><a href="#ebooks">eBooks</a></li>
+                    <li><a href="#bundle">Bundle</a></li>
+                    <li><a href="#why-choose">Why Us</a></li>
+                    <li><a href="#reviews">Reviews</a></li>
+                    <li><a href="#faq">FAQ</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
+            </nav>
+            
+            <div class="header-actions">
+                <a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" class="btn-whatsapp-header" title="Need Help? Chat with CodeLibrary Support on WhatsApp (+91 7808202338)" aria-label="WhatsApp Support">
+                    <i class="fab fa-whatsapp"></i>
+                    <span class="whatsapp-btn-text">WhatsApp Help</span>
+                </a>
+                <button class="icon-btn search-btn" id="btn-search-open" aria-label="Search eBooks" title="Search">
+                    <i class="fas fa-search"></i>
+                </button>
+                <button class="icon-btn theme-toggle" id="btn-theme-toggle" aria-label="Toggle Light/Dark Mode" title="Toggle Theme">
+                    <i class="fas fa-sun"></i>
+                </button>
+                <button class="icon-btn cart-btn" id="btn-cart-open" aria-label="View Shopping Cart" title="Cart">
+                    <i class="fas fa-shopping-bag"></i>
+                    <span class="badge cart-badge" id="cart-badge-count">0</span>
+                </button>
+                <button class="icon-btn mobile-menu-btn" id="btn-mobile-menu" aria-label="Toggle Navigation Menu">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section id="hero">
+            <!-- Subtle Modern Tech Glows and Pattern (NO falling code, NO matrix animation) -->
+            <div class="hero-bg-glow glow-1"></div>
+            <div class="hero-bg-glow glow-2"></div>
+            <div class="hero-bg-tech-grid"></div>
+            
+            <div class="container hero-layout">
+                <!-- Left Column: Content, CTAs & Benefits -->
+                <div class="hero-content">
+                    <div class="hero-badge">
+                        <i class="fas fa-graduation-cap"></i> 19+ Comprehensive Programming eBooks
+                    </div>
+                    <h1 class="hero-title">
+                        Learn Programming. <br>
+                        <span class="gradient-text">Build Your Future.</span>
+                    </h1>
+                    <p class="hero-description">
+                        Get well-structured, easy-to-understand eBooks with practical examples, clear explanations and step-by-step learning.
+                    </p>
+                    <div class="hero-cta">
+                        <a href="#ebooks" class="btn btn-primary"><i class="fas fa-book-open"></i> Explore eBooks &rarr;</a>
+                        <a href="#bundle" class="btn btn-secondary"><i class="fas fa-layer-group"></i> View Complete Bundle &rarr;</a>
+                    </div>
+
+                    <!-- 4 Feature Highlights Bar -->
+                    <div class="hero-features-bar">
+                        <div class="hero-feature-item">
+                            <div class="feature-icon-circle feat-green"><i class="fas fa-book"></i></div>
+                            <div class="feature-text">
+                                <strong>19+ eBooks</strong>
+                                <span>Well-structured content</span>
+                            </div>
+                        </div>
+                        <div class="hero-feature-item">
+                            <div class="feature-icon-circle feat-purple"><i class="fas fa-laptop-code"></i></div>
+                            <div class="feature-text">
+                                <strong>Beginner to Advanced</strong>
+                                <span>Step-by-step learning</span>
+                            </div>
+                        </div>
+                        <div class="hero-feature-item">
+                            <div class="feature-icon-circle feat-orange"><i class="fas fa-download"></i></div>
+                            <div class="feature-text">
+                                <strong>Instant Access</strong>
+                                <span>Download after purchase</span>
+                            </div>
+                        </div>
+                        <div class="hero-feature-item">
+                            <div class="feature-icon-circle feat-red"><i class="fas fa-shield-alt"></i></div>
+                            <div class="feature-text">
+                                <strong>Affordable Prices</strong>
+                                <span>High-quality content</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: 3D Professional Book Showcase Visual -->
+                <div class="hero-visual-showcase">
+                    <div class="showcase-card-wrapper">
+                        <!-- Top right banner tag -->
+                        <div class="showcase-banner-tag">
+                            <i class="fas fa-pencil-alt"></i> Learn Today, Build Tomorrow
+                        </div>
+
+                        <!-- Modern Laptop Dev Preview in background -->
+                        <div class="showcase-laptop">
+                            <div class="laptop-screen">
+                                <div class="laptop-topbar">
+                                    <span class="dot red"></span>
+                                    <span class="dot yellow"></span>
+                                    <span class="dot green"></span>
+                                    <span class="window-title"><i class="fas fa-terminal"></i> workspace.py — CodeLibrary</span>
+                                </div>
+                                <div class="laptop-editor">
+                                    <div class="code-line"><span class="c-purple">from</span> <span class="c-cyan">codelibrary</span> <span class="c-purple">import</span> <span class="c-blue">eBooks</span></div>
+                                    <div class="code-line"><span class="c-comment"># Master 19 programming titles</span></div>
+                                    <div class="code-line"><span class="c-blue">student</span> = <span class="c-yellow">Developer</span>(goal=<span class="c-green">"FullStack"</span>)</div>
+                                    <div class="code-line"><span class="c-blue">student</span>.<span class="c-yellow">learn</span>([<span class="c-green">"C++"</span>, <span class="c-green">"Java"</span>, <span class="c-green">"Python"</span>])</div>
+                                </div>
+                            </div>
+                            <div class="laptop-keyboard"></div>
+                        </div>
+
+                        <!-- 3D Standing Books Stage -->
+                        <div class="showcase-standing-books" id="hero-standing-books">
+                            <!-- 3D Standing Books injected dynamically via hero.js -->
+                        </div>
+
+                        <!-- Stacked Books on Bottom Right -->
+                        <div class="showcase-stacked-books">
+                            <div class="stacked-spine spine-1"><span>Data Structures & Algorithms</span></div>
+                            <div class="stacked-spine spine-2"><span>Operating System</span></div>
+                            <div class="stacked-spine spine-3"><span>Computer Network</span></div>
+                            <div class="stacked-spine spine-4"><span>Database Management System</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- eBooks Catalog Section -->
+        <section id="ebooks" class="section">
+            <div class="container">
+                <div class="section-header-group">
+                    <h2 class="section-title">Explore Our Programming eBooks <span class="underline"></span></h2>
+                    <p class="section-subtitle">Comprehensive guides crafted by experienced engineers with real-world code repositories.</p>
+                </div>
+                
+                <!-- Search & Filters -->
+                <div class="catalog-controls">
+                    <div class="search-bar-inline">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="catalog-search-input" placeholder="Search by title, language, or topic..." autocomplete="off">
+                        <button id="catalog-search-clear" style="display:none;" aria-label="Clear Search"><i class="fas fa-times"></i></button>
+                    </div>
+
+                    <div class="filters-container">
+                        <div class="filters" id="category-filters">
+                            <button class="filter-btn active" data-filter="all">All</button>
+                            <button class="filter-btn" data-filter="web-development">Web Development</button>
+                            <button class="filter-btn" data-filter="programming-languages">Programming Languages</button>
+                            <button class="filter-btn" data-filter="data-science">Data Science</button>
+                            <button class="filter-btn" data-filter="database">Database</button>
+                            <button class="filter-btn" data-filter="ai">AI</button>
+                            <button class="filter-btn" data-filter="computer-science">Computer Science</button>
+                            <button class="filter-btn" data-filter="mobile-development">Mobile Development</button>
+                            <button class="filter-btn" data-filter="productivity">Productivity</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 19 Books Grid -->
+                <div class="books-grid" id="books-grid">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Loading programming eBooks catalog...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Complete Programming Bundle Section -->
+        <section id="bundle" class="section">
+            <div class="container">
+                <div class="bundle-card">
+                    <div class="bundle-badge">
+                        <i class="fas fa-fire"></i> Best Value • Complete Collection
+                    </div>
+                    <div class="bundle-grid-layout">
+                        <div class="bundle-info">
+                            <h2 class="bundle-title">Complete Programming Bundle</h2>
+                            <p class="bundle-tagline">19 eBooks • Complete Collection</p>
+                            <p class="bundle-desc">
+                                Get instant, lifetime access to all 19 programming and computer science eBooks. Master full-stack web development, Python, C++, Java, Data Science, AI, DSA, Operating Systems, Computer Networks, and Databases in one cohesive bundle.
+                            </p>
+                            
+                            <div class="bundle-price-box">
+                                <div class="price-container">
+                                    <span class="old-price">₹2,281</span>
+                                    <span class="current-price">₹399</span>
+                                    <span class="save-badge">Save 82%</span>
+                                </div>
+                                <p class="price-note">One-time payment • Instant digital download</p>
+                            </div>
+
+                            <div class="bundle-actions">
+                                <button class="btn btn-primary btn-large btn-glow" id="btn-buy-bundle">
+                                    Get Complete Bundle &rarr;
+                                </button>
+                                <button class="btn btn-secondary btn-large" id="btn-add-bundle-cart">
+                                    <i class="fas fa-cart-plus"></i> Add Bundle to Cart
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="bundle-features-box">
+                            <h3>What's Included in the Bundle:</h3>
+                            <ul class="bundle-checklist">
+                                <li><i class="fas fa-check-circle"></i> <strong>All 19 Programming eBooks</strong> (Web, AI, Systems, DSA)</li>
+                                <li><i class="fas fa-check-circle"></i> Instant PDF delivery & lifetime access</li>
+                                <li><i class="fas fa-check-circle"></i> Step-by-step code samples & runnable projects</li>
+                                <li><i class="fas fa-check-circle"></i> Free future updates and editions</li>
+                                <li><i class="fas fa-check-circle"></i> Read on Computer, Tablet, or Mobile (Phone)</li>
+                                <li><i class="fas fa-check-circle"></i> 100% Secure encrypted Razorpay payment</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Why Choose CodeLibrary Section -->
+        <section id="why-choose" class="section">
+            <div class="container">
+                <h2 class="section-title">Why Choose CodeLibrary <span class="underline"></span></h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-award"></i></div>
+                        <h3>High-Quality Content</h3>
+                        <p>Written by experienced software engineers with clean code, accurate explanations, and deep industry insights.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-seedling"></i></div>
+                        <h3>Beginner Friendly</h3>
+                        <p>Starts from core fundamentals and gently progresses into advanced topics without confusing jargon.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-code"></i></div>
+                        <h3>Practical Examples</h3>
+                        <p>Includes production-ready code snippets and real-world project tutorials you can implement immediately.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-layer-group"></i></div>
+                        <h3>Step-by-Step Learning</h3>
+                        <p>Curated learning roadmaps that build your skills logically from syntax to full architecture.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-tag"></i></div>
+                        <h3>Affordable Pricing</h3>
+                        <p>World-class computer science education made accessible at student-friendly prices starting at ₹99.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+                        <h3>Instant Digital Access</h3>
+                        <p>Immediate digital access and signed PDF download links generated immediately after verified payment.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
+                        <h3>Secure Payment</h3>
+                        <p>Safe and encrypted checkout powered by Razorpay supporting UPI, Cards, NetBanking, and Wallets.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Reader Reviews Section -->
+        <section id="reviews" class="section">
+            <div class="container">
+                <h2 class="section-title">What Readers Say <span class="underline"></span></h2>
+                <div class="reviews-carousel-wrapper">
+                    <button class="carousel-nav-btn prev-btn" id="review-prev" aria-label="Previous Review">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    
+                    <div class="reviews-track-container">
+                        <div class="reviews-track" id="reviews-track">
+                            <!-- Reviews injected by JS -->
+                        </div>
+                    </div>
+                    
+                    <button class="carousel-nav-btn next-btn" id="review-next" aria-label="Next Review">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+                <div class="carousel-dots" id="review-dots"></div>
+            </div>
+        </section>
+
+        <!-- FAQ Section (Exact 7 Questions) -->
+        <section id="faq" class="section">
+            <div class="container">
+                <h2 class="section-title">Frequently Asked Questions <span class="underline"></span></h2>
+                <div class="faq-container" id="faq-container">
+                    
+                    <div class="faq-item active">
+                        <div class="faq-question">
+                            <h3>How do I purchase an eBook?</h3>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>Simply click "Buy Now" or "Add to Cart" on any eBook or the Complete Bundle. Follow the secure Razorpay checkout to complete your payment using UPI, Debit/Credit Card, Net Banking, or Wallets.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <div class="faq-question">
+                            <h3>How will I receive my eBook?</h3>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>Immediately after your payment is verified on the server, you will receive instant access on the Order Confirmation screen where you can download your purchased eBooks and invoice with a single click.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <div class="faq-question">
+                            <h3>Can beginners use these books?</h3>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>Yes, absolutely! Each book is crafted with beginner-friendly explanations, visual diagrams, and progressive step-by-step code tutorials before delving into advanced concepts.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <div class="faq-question">
+                            <h3>Can I access the eBook on mobile?</h3>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>Yes! All our eBooks are delivered in universally compatible high-resolution PDF format, optimized for reading seamlessly on smartphones and tablets.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <div class="faq-question">
+                            <h3>Can I access it on computer?</h3>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>Yes! You can download the PDF files to your laptop or desktop (Windows, macOS, Linux) and read them offline in any PDF viewer or browser.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <div class="faq-question">
+                            <h3>What is included in the ₹399 bundle?</h3>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>The ₹399 Complete Programming Bundle includes ALL 19 programming eBooks in our store—from HTML & CSS, Python, C++, Java, and React to Data Science, Generative AI, SQL, DSA, and Operating Systems.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <div class="faq-question">
+                            <h3>Is payment secure?</h3>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="faq-answer">
+                            <p>Yes, 100%. All transactions are processed through Razorpay's PCI-DSS compliant payment gateway with end-to-end 256-bit encryption. We never store your card or bank details.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="section">
+            <div class="container">
+                <h2 class="section-title">Contact Us <span class="underline"></span></h2>
+                <div class="contact-wrapper">
+                    <div class="contact-card">
+                        <div class="contact-intro">
+                            <h3>Have a question or need assistance?</h3>
+                            <p>Reach out to the CodeLibrary support team and we will get back to you within 24 hours.</p>
+                            <div class="contact-info-list">
+                                <div class="contact-info-item">
+                                    <i class="fab fa-whatsapp" style="color: #25D366; font-size: 1.35rem;"></i>
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text-primary);">WhatsApp Help</div>
+                                        <a id="contact-info-whatsapp" href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" style="color: #25D366; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                            +91 7808202338 &rarr;
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="contact-info-item">
+                                    <i class="fas fa-envelope"></i>
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text-primary);">Email Support</div>
+                                        <a id="contact-info-email" href="mailto:support@codelibrary.in" style="color: var(--text-secondary); text-decoration: none;">support@codelibrary.in</a>
+                                    </div>
+                                </div>
+                                <div class="contact-info-item">
+                                    <i class="fas fa-clock"></i>
+                                    <div>
+                                        <div style="font-weight: 600; color: var(--text-primary);">Instant Delivery</div>
+                                        <span>24/7 Digital eBook Access</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form id="contact-form" class="contact-form">
+                            <div class="form-group">
+                                <label for="contact-name">Full Name</label>
+                                <input type="text" id="contact-name" placeholder="John Doe" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="contact-email">Email Address</label>
+                                <input type="email" id="contact-email" placeholder="john@example.com" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="contact-message">Your Message</label>
+                                <textarea id="contact-message" rows="4" placeholder="How can we help you?" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block" id="btn-contact-submit">
+                                <span>Send Message</span> <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container footer-container">
+            <div class="footer-col brand-col">
+                <a href="#hero" class="logo">
+                    <i class="fas fa-terminal"></i> CodeLibrary
+                </a>
+                <p class="tagline">"Learn Programming. Build Your Future."</p>
+                <p class="desc">High-quality programming eBooks for learners and developers worldwide.</p>
+                <div class="footer-social-links" id="footer-social-links" style="display: flex; gap: 0.75rem; margin-top: 1.25rem; flex-wrap: wrap;">
+                    <!-- Dynamically populated via JS from Admin Settings -->
+                </div>
+            </div>
+            
+            <div class="footer-col">
+                <h3>Quick Links</h3>
+                <ul>
+                    <li><a href="#hero">Home</a></li>
+                    <li><a href="#ebooks">eBooks</a></li>
+                    <li><a href="#bundle">Bundle</a></li>
+                    <li><a href="#why-choose">Why Us</a></li>
+                    <li><a href="#reviews">Reviews</a></li>
+                    <li><a href="#faq">FAQ</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                    <li><a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" style="color: #25D366; font-weight: 600;"><i class="fab fa-whatsapp"></i> WhatsApp Help</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-col">
+                <h3>eBook Categories</h3>
+                <ul>
+                    <li><a href="#ebooks" onclick="filterCategory('web-development')">Web Development</a></li>
+                    <li><a href="#ebooks" onclick="filterCategory('programming-languages')">Programming Languages</a></li>
+                    <li><a href="#ebooks" onclick="filterCategory('data-science')">Data Science & AI</a></li>
+                    <li><a href="#ebooks" onclick="filterCategory('computer-science')">Computer Science</a></li>
+                    <li><a href="#ebooks" onclick="filterCategory('database')">Databases & SQL</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-col">
+                <h3>Legal & Policies</h3>
+                <ul>
+                    <li><a href="javascript:void(0)" onclick="showLegalModal('terms')">Terms & Conditions</a></li>
+                    <li><a href="javascript:void(0)" onclick="showLegalModal('privacy')">Privacy Policy</a></li>
+                    <li><a href="javascript:void(0)" onclick="showLegalModal('refund')">Refund Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <div class="container footer-bottom-flex">
+                <p>&copy; 2026 CodeLibrary. All rights reserved.</p>
+                <p class="security-badge"><i class="fas fa-lock"></i> 256-Bit SSL Encrypted Checkout</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modals -->
+
+    <!-- Book Detail Modal -->
+    <div class="modal-overlay" id="book-detail-modal">
+        <div class="modal-content book-modal">
+            <button class="close-modal" aria-label="Close Modal">&times;</button>
+            <div class="book-detail-content" id="book-detail-body">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Shopping Cart Modal Sidebar -->
+    <div class="modal-overlay" id="cart-modal">
+        <div class="modal-content cart-sidebar">
+            <div class="cart-header">
+                <h2><i class="fas fa-shopping-bag"></i> Your Cart</h2>
+                <button class="close-modal" aria-label="Close Cart">&times;</button>
+            </div>
+            <div class="cart-body" id="cart-items">
+                <!-- Cart items injected via JS -->
+            </div>
+            <div class="cart-footer">
+                <!-- Coupon Input Area -->
+                <div class="cart-coupon-section">
+                    <div class="coupon-input-group" id="coupon-input-container">
+                        <input type="text" id="cart-coupon-input" placeholder="Enter coupon code (e.g. WELCOME10)" autocomplete="off" style="text-transform: uppercase;">
+                        <button type="button" class="btn btn-outline" id="btn-apply-coupon">Apply</button>
+                    </div>
+                    <div id="coupon-applied-badge" class="coupon-applied-pill" style="display: none;">
+                        <span class="coupon-applied-tag"><i class="fas fa-tag"></i> <strong id="applied-coupon-code"></strong></span>
+                        <span class="coupon-applied-saved" id="applied-coupon-saved">Saved ₹0</span>
+                        <button type="button" class="btn-remove-coupon" id="btn-remove-coupon" title="Remove Coupon" aria-label="Remove Coupon">&times;</button>
+                    </div>
+                    <div id="coupon-message" class="coupon-status-msg" style="display: none;"></div>
+                </div>
+
+                <!-- Customer Checkout Details -->
+                <div class="cart-customer-section" style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-user-edit" style="color: var(--accent-blue);"></i> Customer Details
+                    </h4>
+                    <div class="form-group" style="margin-bottom: 0.6rem;">
+                        <label for="checkout-name" style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Full Name *</label>
+                        <input type="text" id="checkout-name" class="form-control" placeholder="e.g. John Doe" required style="width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.6rem;">
+                        <label for="checkout-email" style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Email Address * (for order confirmation & invoice)</label>
+                        <input type="email" id="checkout-email" class="form-control" placeholder="e.g. john@example.com" required style="width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label for="checkout-phone" style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Mobile Number *</label>
+                        <input type="tel" id="checkout-phone" class="form-control" placeholder="e.g. 9876543210" required style="width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem;">
+                    </div>
+                </div>
+
+                <!-- WhatsApp Help Callout in Cart -->
+                <div class="cart-whatsapp-help" style="margin: 0.85rem 0; padding: 0.65rem 0.85rem; background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.22); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
+                    <div style="display: flex; align-items: center; gap: 0.45rem; color: var(--text-primary);">
+                        <i class="fab fa-whatsapp" style="color: #25D366; font-size: 1.15rem;"></i>
+                        <span>Need Help?</span>
+                    </div>
+                    <a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" style="color: #25D366; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                        Chat on WhatsApp &rarr;
+                    </a>
+                </div>
+
+                <div class="cart-summary-line">
+                    <span>Subtotal:</span>
+                    <span id="cart-subtotal-price">₹0</span>
+                </div>
+                <div class="cart-summary-line discount-line" id="cart-discount-line" style="display: none;">
+                    <span>Discount:</span>
+                    <span id="cart-discount-amount" class="text-success" style="color: #10b981; font-weight: 600;">-₹0</span>
+                </div>
+                <div class="cart-total">
+                    <span>Total Amount:</span>
+                    <span id="cart-total-price">₹0</span>
+                </div>
+                <button class="btn btn-primary btn-block btn-large" id="btn-cart-checkout">
+                    Proceed to Pay &rarr;
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal Overlay -->
+    <div class="modal-overlay" id="search-modal">
+        <div class="modal-content search-box">
+            <button class="close-modal" aria-label="Close Search">&times;</button>
+            <div class="search-header">
+                <i class="fas fa-search"></i>
+                <input type="text" id="search-input" placeholder="Search by book name, programming language, or category..." autocomplete="off">
+            </div>
+            <div class="search-results" id="search-results">
+                <!-- Injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Success & Download Center Modal -->
+    <div class="modal-overlay" id="thankyou-modal">
+        <div class="modal-content thankyou-box" style="max-width: 600px; padding: 2.5rem 2rem;">
+            <button class="close-modal" aria-label="Close">&times;</button>
+            <div class="success-icon-wrapper" style="font-size: 3rem; color: #10b981; margin-bottom: 1rem; text-align: center;">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2 style="font-size: 1.75rem; font-weight: 800; text-align: center; margin-bottom: 0.5rem;">🎉 Payment Successful!</h2>
+            <p class="thankyou-desc" style="text-align: center; color: var(--text-secondary); margin-bottom: 1.5rem; font-size: 0.95rem;">
+                Thank you for your purchase from CodeLibrary. Your order is confirmed and your eBooks are ready to download below.
+            </p>
+
+            <!-- Order Summary Card -->
+            <div class="order-receipt-card" style="background: var(--bg-primary); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.5rem; font-size: 0.9rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span style="color: var(--text-secondary);">Order ID:</span>
+                    <strong id="success-order-id" style="font-family: monospace;">-</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span style="color: var(--text-secondary);">Customer Name:</span>
+                    <strong id="success-customer-name">-</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span style="color: var(--text-secondary);">Email Address:</span>
+                    <strong id="success-customer-email">-</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding-top: 0.5rem; border-top: 1px dashed var(--border);">
+                    <span style="color: var(--text-secondary);">Amount Paid:</span>
+                    <strong id="success-amount-paid" style="color: #10b981; font-size: 1.05rem;">₹0</strong>
+                </div>
+            </div>
+
+            <!-- Downloadable eBooks List -->
+            <div style="margin-bottom: 1.25rem;">
+                <h3 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-book-open" style="color: var(--accent-blue);"></i> Your Purchased eBooks
+                </h3>
+                <div id="success-items-list" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 240px; overflow-y: auto;">
+                    <!-- Injected via JS with download buttons -->
+                </div>
+            </div>
+
+            <!-- WhatsApp Support Help in Order Success -->
+            <div class="success-whatsapp-card" style="margin-bottom: 1.25rem; padding: 0.85rem 1rem; background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.25); border-radius: 10px; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.65rem;">
+                    <i class="fab fa-whatsapp" style="color: #25D366; font-size: 1.5rem;"></i>
+                    <div style="font-size: 0.82rem; text-align: left;">
+                        <strong style="color: var(--text-primary); display: block;">Need Help With Your eBook or Order?</strong>
+                        <span style="color: var(--text-secondary);">WhatsApp Support: +91 7808202338</span>
+                    </div>
+                </div>
+                <a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="background: #25D366; color: #ffffff; font-weight: 600; padding: 0.4rem 0.85rem; border-radius: 6px; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i class="fab fa-whatsapp"></i> Chat Support
+                </a>
+            </div>
+
+            <!-- Actions Bar: Invoice & Done -->
+            <div class="thankyou-actions" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <a id="btn-success-invoice" href="#" target="_blank" class="btn btn-outline" style="flex: 1; text-align: center; justify-content: center; display: inline-flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-file-invoice"></i> Download Invoice
+                </a>
+                <button class="btn btn-primary" onclick="closeModals();" style="flex: 1; justify-content: center; display: inline-flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-check"></i> Done
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legal Policy Modal -->
+    <div class="modal-overlay" id="legal-modal">
+        <div class="modal-content legal-box">
+            <button class="close-modal" aria-label="Close Legal">&times;</button>
+            <h2 id="legal-modal-title">Policy</h2>
+            <div id="legal-modal-body" class="legal-body"></div>
+        </div>
+    </div>
+
+    <!-- Mobile Navigation Menu -->
+    <div id="mobile-menu">
+        <button class="close-menu" aria-label="Close Navigation Menu">&times;</button>
+        <div class="mobile-logo">
+            <i class="fas fa-terminal"></i> CodeLibrary
+        </div>
+        <ul class="mobile-nav-links">
+            <li><a href="#hero">Home</a></li>
+            <li><a href="#ebooks">eBooks</a></li>
+            <li><a href="#bundle">Bundle</a></li>
+            <li><a href="#why-choose">Why Us</a></li>
+            <li><a href="#reviews">Reviews</a></li>
+            <li><a href="#faq">FAQ</a></li>
+            <li><a href="#contact">Contact</a></li>
+            <li style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                <a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" style="color: #25D366; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fab fa-whatsapp" style="font-size: 1.3rem;"></i> WhatsApp Help (+91 7808202338)
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Floating WhatsApp Support Button -->
+    <a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" class="floating-whatsapp-btn" id="floating-whatsapp-btn" title="Need Help? Chat with CodeLibrary on WhatsApp (+91 7808202338)" aria-label="Need Help? Chat with CodeLibrary on WhatsApp">
+        <i class="fab fa-whatsapp"></i>
+        <span class="floating-whatsapp-tooltip">Need Help? Chat on WhatsApp</span>
+    </a>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="js/hero.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
