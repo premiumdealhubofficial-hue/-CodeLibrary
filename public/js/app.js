@@ -211,31 +211,67 @@ async function fetchBundle() {
 }
 
 function renderBundle() {
-  if (!state.bundle) return;
-  const bundleCard = document.querySelector('.bundle-card');
-  if (!bundleCard) return;
+  if (!state.bundle || state.bundle.price == null) return;
+  const bundlePriceFormatted = formatCurrency(state.bundle.price);
 
-  const currentPriceEl = bundleCard.querySelector('.current-price');
-  if (currentPriceEl && state.bundle.price != null) {
-    currentPriceEl.textContent = formatCurrency(state.bundle.price);
+  // 1. Home page bundle / collection amount
+  const heroBundlePriceEl = document.getElementById('hero-bundle-price');
+  if (heroBundlePriceEl) {
+    heroBundlePriceEl.textContent = `(${bundlePriceFormatted})`;
   }
 
-  const oldPriceEl = bundleCard.querySelector('.old-price');
-  const saveBadgeEl = bundleCard.querySelector('.save-badge');
-  if (oldPriceEl && Array.isArray(state.books) && state.books.length > 0) {
-    const totalOriginal = state.books.reduce((acc, b) => acc + (b.price || 0), 0);
-    if (totalOriginal > 0) {
-      oldPriceEl.textContent = formatCurrency(totalOriginal);
-      if (saveBadgeEl && state.bundle.price != null) {
-        const discountPercent = Math.max(0, Math.round(((totalOriginal - state.bundle.price) / totalOriginal) * 100));
-        saveBadgeEl.textContent = `Save ${discountPercent}%`;
+  // 2. Bundle page top price & Card Elements
+  const bundleCard = document.querySelector('.bundle-card');
+  if (bundleCard) {
+    const currentPriceEl = bundleCard.querySelector('.current-price');
+    if (currentPriceEl) {
+      currentPriceEl.textContent = bundlePriceFormatted;
+    }
+
+    const oldPriceEl = bundleCard.querySelector('.old-price');
+    const saveBadgeEl = bundleCard.querySelector('.save-badge');
+    if (oldPriceEl && Array.isArray(state.books) && state.books.length > 0) {
+      const totalOriginal = state.books.reduce((acc, b) => acc + (b.price || 0), 0);
+      if (totalOriginal > 0) {
+        oldPriceEl.textContent = formatCurrency(totalOriginal);
+        if (saveBadgeEl && state.bundle.price != null) {
+          const discountPercent = Math.max(0, Math.round(((totalOriginal - state.bundle.price) / totalOriginal) * 100));
+          saveBadgeEl.textContent = `Save ${discountPercent}%`;
+        }
       }
+    }
+
+    const bundleTitleEl = bundleCard.querySelector('.bundle-title');
+    if (bundleTitleEl && state.bundle.title) {
+      bundleTitleEl.textContent = state.bundle.title;
+    }
+
+    // 3. Bundle page bottom / CTA price
+    const bundleCtaPriceEl = document.getElementById('bundle-cta-price');
+    if (bundleCtaPriceEl) {
+      bundleCtaPriceEl.textContent = `• ${bundlePriceFormatted}`;
     }
   }
 
-  const bundleTitleEl = bundleCard.querySelector('.bundle-title');
-  if (bundleTitleEl && state.bundle.title) {
-    bundleTitleEl.textContent = state.bundle.title;
+  // Sync any active cart items to current bundle price (4. Cart & 5. Checkout)
+  syncCartWithLivePrices();
+}
+
+function syncCartWithLivePrices() {
+  if (!state.cart || state.cart.length === 0) return;
+  let changed = false;
+  state.cart.forEach(item => {
+    if (item.type === 'bundle' && state.bundle && state.bundle.price != null) {
+      if (item.price !== state.bundle.price || (state.bundle.title && item.title !== state.bundle.title)) {
+        item.price = state.bundle.price;
+        if (state.bundle.title) item.title = state.bundle.title;
+        changed = true;
+      }
+    }
+  });
+  if (changed) {
+    localStorage.setItem('codelibrary_cart', JSON.stringify(state.cart));
+    renderCart();
   }
 }
 
