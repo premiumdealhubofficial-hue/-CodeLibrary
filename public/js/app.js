@@ -56,6 +56,14 @@ async function api(path, options = {}) {
 document.addEventListener('DOMContentLoaded', async () => {
   loadTheme();
   loadCart();
+  initFilters();
+  initNavigation();
+  initSearch();
+  initFAQ();
+  initContact();
+  initBundleActions();
+  initReviewsCarousel();
+  initCouponListeners();
   
   await Promise.all([
     fetchBooks(),
@@ -63,15 +71,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     fetchReviews(),
     fetchSettings()
   ]);
-
-  initNavigation();
-  initFilters();
-  initSearch();
-  initFAQ();
-  initContact();
-  initBundleActions();
-  initReviewsCarousel();
-  initCouponListeners();
 });
 
 // Dynamic Settings Fetching & DOM Hydration
@@ -293,12 +292,28 @@ function renderBooks() {
   const grid = document.getElementById('books-grid');
   if (!grid) return;
 
+  if (!state.activeFilter) {
+    state.activeFilter = 'all';
+  }
+
+  const activeFilter = state.activeFilter.toLowerCase().trim();
+
+  // Sync category filter buttons visual active state
+  const filterBtns = document.querySelectorAll('.filter-btn');
+  if (filterBtns.length > 0) {
+    filterBtns.forEach(btn => {
+      const btnFilter = (btn.getAttribute('data-filter') || '').toLowerCase().trim();
+      btn.classList.toggle('active', btnFilter === activeFilter);
+    });
+  }
+
   const filtered = state.books.filter(b => {
-    const matchesCategory = state.activeFilter === 'all' || b.category === state.activeFilter;
-    const q = state.searchQuery.toLowerCase().trim();
+    const bookCategory = (b.category || '').toLowerCase().trim();
+    const matchesCategory = activeFilter === 'all' || activeFilter === '' || bookCategory === activeFilter;
+    const q = (state.searchQuery || '').toLowerCase().trim();
     const matchesSearch = !q || 
-      b.title.toLowerCase().includes(q) || 
-      (b.category && b.category.toLowerCase().includes(q)) || 
+      (b.title && b.title.toLowerCase().includes(q)) || 
+      (bookCategory && bookCategory.includes(q)) || 
       (b.short_description && b.short_description.toLowerCase().includes(q));
     return matchesCategory && matchesSearch;
   });
@@ -443,12 +458,16 @@ window.openBookDetail = async function(slugOrId) {
 
 // Filter Management
 function initFilters() {
+  state.activeFilter = (state.activeFilter || 'all').toLowerCase().trim();
   const filterBtns = document.querySelectorAll('.filter-btn');
   filterBtns.forEach(btn => {
+    const btnFilter = (btn.getAttribute('data-filter') || '').toLowerCase().trim();
+    btn.classList.toggle('active', btnFilter === state.activeFilter);
     btn.addEventListener('click', (e) => {
+      const targetBtn = e.target.closest('.filter-btn') || e.target;
       filterBtns.forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      state.activeFilter = e.target.getAttribute('data-filter');
+      targetBtn.classList.add('active');
+      state.activeFilter = (targetBtn.getAttribute('data-filter') || 'all').toLowerCase().trim();
       renderBooks();
     });
   });
