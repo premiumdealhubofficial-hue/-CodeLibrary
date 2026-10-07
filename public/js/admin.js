@@ -54,10 +54,14 @@ const escapeHtml = (str) => {
     .replace(/'/g, '&#039;');
 };
 
-// API Wrapper with Cookie Authentication
+// API Wrapper with Dual Cookie & Bearer Token Authentication
 const adminApi = async (path, options = {}) => {
+  const token = localStorage.getItem('admin_token');
   const defaultOptions = {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    },
     credentials: 'same-origin'
   };
   
@@ -70,17 +74,29 @@ const adminApi = async (path, options = {}) => {
 
   try {
     const response = await fetch(path, merged);
-    if (response.status === 401) {
-      showLoginScreen();
-      throw new Error('Session expired or unauthorized');
-    }
     const data = await response.json().catch(() => ({}));
+
+    if (response.status === 401) {
+      if (path === '/api/admin/login') {
+        const loginErr = new Error(data.error || 'Invalid admin credentials');
+        loginErr.require_2fa = !!data.require_2fa;
+        throw loginErr;
+      }
+      localStorage.removeItem('admin_token');
+      showLoginScreen();
+      throw new Error(data.error || 'Session expired or unauthorized');
+    }
+
     if (!response.ok) {
-      throw new Error(data.error || `HTTP Error ${response.status}`);
+      const err = new Error(data.error || `HTTP Error ${response.status}`);
+      err.require_2fa = !!data.require_2fa;
+      throw err;
     }
     return data;
   } catch (error) {
-    console.error('Admin API Error:', error);
+    if (path !== '/api/admin/me') {
+      console.error('Admin API Error:', error);
+    }
     throw error;
   }
 };
@@ -114,11 +130,14 @@ const handleLogin = async (e) => {
       body: { email, password, totp_code: totp }
     });
     
+    if (res.token) {
+      localStorage.setItem('admin_token', res.token);
+    }
     adminState.admin = res.admin;
     showDashboard();
     showAdminToast('Welcome to CodeLibrary Admin Panel', 'success');
   } catch (err) {
-    if (err.message.includes('Two-factor') || err.message.includes('2FA')) {
+    if (err.require_2fa || (err.message && (err.message.includes('Two-factor') || err.message.includes('2FA')))) {
       document.getElementById('totp-field').style.display = 'block';
       document.getElementById('login-totp').focus();
     }
@@ -132,12 +151,13 @@ const handleLogin = async (e) => {
 const handleLogout = async () => {
   try {
     await adminApi('/api/admin/logout', { method: 'POST' });
-    adminState.admin = null;
-    showLoginScreen();
-    showAdminToast('Logged out securely', 'info');
   } catch (e) {
-    showAdminToast('Logout failed', 'error');
+    // Ignored
   }
+  localStorage.removeItem('admin_token');
+  adminState.admin = null;
+  showLoginScreen();
+  showAdminToast('Logged out securely', 'info');
 };
 
 const showLoginScreen = () => {

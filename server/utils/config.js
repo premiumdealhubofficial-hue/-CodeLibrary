@@ -11,8 +11,8 @@ module.exports = {
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
   RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET,
   EBOOK_STORAGE_PATH: process.env.EBOOK_STORAGE_PATH || './ebooks',
-  ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'admin@codelibrary.com',
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin123',
+  ADMIN_EMAIL: process.env.ADMIN_EMAIL || 'admin@codelibrary.in',
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'Admin@CodeLib2024!',
   ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'admin',
   BACKUP_DIR: process.env.BACKUP_DIR || 'backups',
   BACKUP_RETENTION_COUNT: parseInt(process.env.BACKUP_RETENTION_COUNT, 10) || 30

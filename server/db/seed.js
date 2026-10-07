@@ -401,9 +401,9 @@ function seedDatabase(db) {
     fs.mkdirSync(ebookDir, { recursive: true });
   }
 
-  // 1. Admin account initialization (never overwrites existing admin)
-  const adminQuery = db.prepare('SELECT id FROM admins WHERE email = ? OR username = ?');
-  const existingAdmin = adminQuery.get(config.ADMIN_EMAIL, config.ADMIN_USERNAME);
+  // 1. Admin account initialization (safe idempotent check & sync)
+  const adminQuery = db.prepare('SELECT id, email, username, totp_enabled FROM admins WHERE email = ? OR username = ?');
+  const existingAdmin = adminQuery.get(config.ADMIN_EMAIL, config.ADMIN_USERNAME || 'admin');
   
   if (!existingAdmin) {
     const hashedPassword = bcrypt.hashSync(config.ADMIN_PASSWORD, 10);
@@ -411,6 +411,12 @@ function seedDatabase(db) {
       uuidv4(), config.ADMIN_EMAIL, config.ADMIN_USERNAME || 'admin', hashedPassword
     );
     console.log(`Admin account initialized (${config.ADMIN_EMAIL}).`);
+  } else if (!existingAdmin.totp_enabled) {
+    // Synchronize configured admin password when 2FA is not enabled
+    const hashedPassword = bcrypt.hashSync(config.ADMIN_PASSWORD, 10);
+    db.prepare('UPDATE admins SET email = ?, username = ?, password_hash = ? WHERE id = ?').run(
+      config.ADMIN_EMAIL, config.ADMIN_USERNAME || 'admin', hashedPassword, existingAdmin.id
+    );
   }
 
   // 2. Books Catalog Initialization (Idempotent ON CONFLICT / COALESCE to preserve custom admin changes)

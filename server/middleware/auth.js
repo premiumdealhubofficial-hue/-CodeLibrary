@@ -15,7 +15,10 @@ function authenticateUser(req, res, next) {
 }
 
 function authenticateAdmin(req, res, next) {
-  const token = req.cookies.admin_token;
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+  const token = (req.cookies && req.cookies.admin_token) || bearerToken;
+  
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
@@ -26,7 +29,7 @@ function authenticateAdmin(req, res, next) {
     req.admin = decoded;
     next();
   } catch (err) {
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: 'Invalid or expired session token' });
   }
 }
 

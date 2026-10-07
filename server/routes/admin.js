@@ -97,12 +97,17 @@ router.post('/login', loginLimiter, async (req, res) => {
     res.cookie('admin_token', token, { 
       httpOnly: true, 
       secure: process.env.NODE_ENV === 'production', 
-      sameSite: 'lax', 
+      sameSite: 'lax',
+      path: '/',
       maxAge: 12 * 3600000 
     });
     
     logAudit(db, admin.id, 'LOGIN', 'ADMIN', admin.id, { email: admin.email }, req.ip);
-    res.json({ success: true, admin: { id: admin.id, email: admin.email, username: admin.username, totp_enabled: !!admin.totp_enabled } });
+    res.json({ 
+      success: true, 
+      token,
+      admin: { id: admin.id, email: admin.email, username: admin.username, totp_enabled: !!admin.totp_enabled } 
+    });
   } catch (err) {
     console.error('Admin login error:', err);
     res.status(500).json({ error: 'Internal server error during admin login' });
