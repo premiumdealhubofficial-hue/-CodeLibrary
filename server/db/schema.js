@@ -254,7 +254,19 @@ function getDb() {
     // Columns may already exist
   }
 
+  // Safe automated initialization of catalog on fresh deployment (Render/Docker/VPS)
+  try {
+    const publishedCount = dbInstance.prepare("SELECT COUNT(*) as count FROM books WHERE is_published = 1").get().count;
+    if (publishedCount < 19) {
+      const { seedDatabase } = require('./seed');
+      seedDatabase(dbInstance);
+    }
+  } catch (err) {
+    console.error('Database auto-initialization notice:', err.message);
+  }
+
   return dbInstance;
 }
 
 module.exports = { getDb, getDbPath };
+
