@@ -83,7 +83,7 @@ app.get('/api/bundles', apiLimiter, (req, res) => {
 app.get('/api/bundles/:slug', apiLimiter, (req, res) => {
   const db = getDb();
   try {
-    const bundle = db.prepare('SELECT * FROM bundles WHERE slug = ? AND is_active = 1').get(req.params.slug);
+    const bundle = db.prepare('SELECT * FROM bundles WHERE (slug = ? OR id = ?) AND is_active = 1').get(req.params.slug, req.params.slug);
     if (!bundle) return res.status(404).json({ error: 'Bundle not found' });
     
     const bookIds = JSON.parse(bundle.books || '[]');

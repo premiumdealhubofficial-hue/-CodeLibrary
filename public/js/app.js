@@ -261,7 +261,8 @@ function syncCartWithLivePrices() {
   if (!state.cart || state.cart.length === 0) return;
   let changed = false;
   state.cart.forEach(item => {
-    if (item.type === 'bundle' && state.bundle && state.bundle.price != null) {
+    const isBundle = item.type === 'bundle' || item.id === 'bundle' || item.slug === 'complete-programming-bundle' || (state.bundle && item.id === state.bundle.id);
+    if (isBundle && state.bundle && state.bundle.price != null) {
       if (item.price !== state.bundle.price || (state.bundle.title && item.title !== state.bundle.title)) {
         item.price = state.bundle.price;
         if (state.bundle.title) item.title = state.bundle.title;
@@ -558,12 +559,16 @@ function saveCart() {
   renderBooks();
 }
 
-window.addToCart = function(id, type = 'book') {
+window.addToCart = async function(id, type = 'book') {
   if (type === 'bundle') {
+    if (!state.bundle || state.bundle.price == null) {
+      await fetchBundle();
+    }
     // If bundle is added, replace individual books with bundle to save money
     state.cart = [{
       id: state.bundle?.id || 'bundle',
       type: 'bundle',
+      slug: state.bundle?.slug || 'complete-programming-bundle',
       title: state.bundle?.title || 'Complete Programming Bundle (All 19 eBooks)',
       price: state.bundle?.price != null ? state.bundle.price : 0
     }];
@@ -813,9 +818,13 @@ document.getElementById('btn-cart-checkout')?.addEventListener('click', () => {
 
 window.buyNow = async function(id, type = 'book') {
   if (type === 'bundle') {
+    if (!state.bundle || state.bundle.price == null) {
+      await fetchBundle();
+    }
     state.cart = [{
       id: state.bundle?.id || 'bundle',
       type: 'bundle',
+      slug: state.bundle?.slug || 'complete-programming-bundle',
       title: state.bundle?.title || 'Complete Programming Bundle (All 19 eBooks)',
       price: state.bundle?.price != null ? state.bundle.price : 0
     }];
