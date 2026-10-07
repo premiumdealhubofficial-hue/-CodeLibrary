@@ -11,6 +11,7 @@ const state = {
   searchQuery: '',
   currentReviewIndex: 0
 };
+window.state = state;
 
 // Category Color & Icon Mappings for CSS Book Covers
 const categoryMeta = {
@@ -292,11 +293,8 @@ function renderBooks() {
   const grid = document.getElementById('books-grid');
   if (!grid) return;
 
-  if (!state.activeFilter) {
-    state.activeFilter = 'all';
-  }
-
-  const activeFilter = state.activeFilter.toLowerCase().trim();
+  state.activeFilter = (state.activeFilter || 'all').toLowerCase().trim();
+  const activeFilter = state.activeFilter;
 
   // Sync category filter buttons visual active state
   const filterBtns = document.querySelectorAll('.filter-btn');
@@ -305,6 +303,16 @@ function renderBooks() {
       const btnFilter = (btn.getAttribute('data-filter') || '').toLowerCase().trim();
       btn.classList.toggle('active', btnFilter === activeFilter);
     });
+  }
+
+  if (!state.books || state.books.length === 0) {
+    grid.innerHTML = `
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading programming eBooks catalog...</p>
+      </div>
+    `;
+    return;
   }
 
   const filtered = state.books.filter(b => {
