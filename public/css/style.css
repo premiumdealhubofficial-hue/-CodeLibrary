@@ -1689,18 +1689,35 @@ footer {
   overflow-y: auto;
 }
 
+/* Disable any browser number input spin buttons */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
 .cart-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 1rem 0;
   border-bottom: 1px solid var(--border);
+  gap: 1rem;
+}
+
+.cart-item-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .cart-item-title {
   font-weight: 700;
   font-size: 0.95rem;
   margin-bottom: 0.2rem;
+  word-break: break-word;
 }
 
 .cart-item-badge {
@@ -1712,7 +1729,7 @@ footer {
   font-weight: 800;
   color: var(--accent-blue);
   font-size: 1.05rem;
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
 }
 
 .cart-remove-btn {
@@ -1729,6 +1746,7 @@ footer {
   border-radius: 6px;
   transition: all 0.2s ease;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cart-remove-btn:hover {
