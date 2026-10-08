@@ -177,28 +177,52 @@ function updateThemeIcon(theme) {
 document.getElementById('btn-theme-toggle')?.addEventListener('click', toggleTheme);
 
 // Data Fetching
-async function fetchBooks() {
-  try {
-    let data;
+async function fetchBooks(maxRetries = 3) {
+  let attempt = 0;
+  let lastError = null;
+
+  while (attempt < maxRetries) {
     try {
-      data = await api('/api/books');
-    } catch (e) {
-      const res = await fetch('/api/books');
-      if (res.ok) {
-        data = await res.json();
-      } else {
-        throw e;
+      let data;
+      try {
+        data = await api('/api/books');
+      } catch (e) {
+        const res = await fetch('/api/books');
+        if (res.ok) {
+          data = await res.json();
+        } else {
+          throw e;
+        }
+      }
+
+      if (Array.isArray(data)) {
+        state.books = data;
+        state.activeFilter = (state.activeFilter || 'all').toLowerCase().trim();
+        renderBooks();
+        renderBundle();
+        return;
+      }
+    } catch (err) {
+      lastError = err;
+      attempt++;
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt - 1) * 500;
+        await new Promise(r => setTimeout(r, delay));
       }
     }
-    state.books = Array.isArray(data) ? data : [];
-    renderBooks();
-    renderBundle();
-  } catch (err) {
-    console.error('Failed to load books:', err);
-    const grid = document.getElementById('books-grid');
-    if (grid) {
-      grid.innerHTML = '<div class="error-state"><p>Could not load books. Please check server connection.</p></div>';
-    }
+  }
+
+  console.error('Failed to load books after retries:', lastError);
+  const grid = document.getElementById('books-grid');
+  if (grid) {
+    grid.innerHTML = `
+      <div class="error-state" style="grid-column: 1/-1; text-align: center; padding: 3rem 1rem;">
+        <i class="fas fa-exclamation-triangle" style="font-size: 2.5rem; color: #ef4444; margin-bottom: 1rem;"></i>
+        <h3>Could not load books</h3>
+        <p>Please check your internet or server connection.</p>
+        <button class="btn btn-secondary mt-4" onclick="fetchBooks()">Retry Loading</button>
+      </div>
+    `;
   }
 }
 
