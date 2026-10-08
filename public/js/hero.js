@@ -2,28 +2,16 @@ function initHero() {
   initStandingBooksShowcase();
 }
 
-async function initStandingBooksShowcase() {
+function initStandingBooksShowcase() {
   const container = document.getElementById('hero-standing-books');
   if (!container) return;
 
   try {
-    let books = [];
-    if (window.state && Array.isArray(window.state.books) && window.state.books.length > 0) {
-      books = window.state.books;
-    } else {
-      const res = await fetch('/api/books', { cache: 'no-cache' });
-      if (res.ok) {
-        books = await res.json();
-        if (window.state && (!window.state.books || window.state.books.length === 0)) {
-          window.state.books = books;
-          if (typeof window.renderBooks === 'function') {
-            window.renderBooks();
-          }
-        }
-      }
-    }
+    const books = (window.state && Array.isArray(window.state.books) && window.state.books.length > 0)
+      ? window.state.books
+      : [];
 
-    if (!Array.isArray(books) || books.length === 0) return;
+    if (books.length === 0) return;
 
     // 4 Featured Core Books matching the reference: C, C++, Java, Python
     const targetSlugs = ['c', 'cpp', 'java', 'python'];

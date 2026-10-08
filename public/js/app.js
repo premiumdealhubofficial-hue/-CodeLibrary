@@ -177,57 +177,82 @@ function updateThemeIcon(theme) {
 document.getElementById('btn-theme-toggle')?.addEventListener('click', toggleTheme);
 
 // Data Fetching
-async function fetchBooks(maxRetries = 3) {
+let isFetchingBooks = false;
+
+async function fetchBooks(maxRetries = 3, force = false) {
+  // If books are already loaded and force is not requested, ensure rendered and return
+  if (!force && Array.isArray(state.books) && state.books.length > 0) {
+    renderBooks();
+    renderBundle();
+    if (typeof initStandingBooksShowcase === 'function') {
+      initStandingBooksShowcase();
+    }
+    return;
+  }
+
+  // Prevent concurrent duplicate fetch requests
+  if (isFetchingBooks) return;
+  isFetchingBooks = true;
+
   let attempt = 0;
   let lastError = null;
 
-  while (attempt < maxRetries) {
-    try {
-      const res = await fetch('/api/books', {
-        headers: { 'Accept': 'application/json' },
-        cache: 'no-cache'
-      });
+  try {
+    while (attempt < maxRetries) {
+      try {
+        const res = await fetch('/api/books', {
+          headers: { 'Accept': 'application/json' },
+          cache: 'no-cache'
+        });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-
-      const data = await res.json();
-      const booksList = Array.isArray(data) ? data : (data && Array.isArray(data.books) ? data.books : []);
-
-      if (booksList.length > 0) {
-        state.books = booksList;
-        state.activeFilter = (state.activeFilter || 'all').toLowerCase().trim();
-        renderBooks();
-        renderBundle();
-        if (typeof initStandingBooksShowcase === 'function') {
-          initStandingBooksShowcase();
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
-        return;
-      } else {
-        throw new Error('No books found in catalog response');
-      }
-    } catch (err) {
-      lastError = err;
-      attempt++;
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt - 1) * 500;
-        await new Promise(r => setTimeout(r, delay));
+
+        const data = await res.json();
+        const booksList = Array.isArray(data) ? data : (data && Array.isArray(data.books) ? data.books : []);
+
+        if (booksList.length > 0) {
+          state.books = booksList;
+          state.activeFilter = (state.activeFilter || 'all').toLowerCase().trim();
+          renderBooks();
+          renderBundle();
+          if (typeof initStandingBooksShowcase === 'function') {
+            initStandingBooksShowcase();
+          }
+          return;
+        } else {
+          throw new Error('No books found in catalog response');
+        }
+      } catch (err) {
+        lastError = err;
+        attempt++;
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt - 1) * 500;
+          await new Promise(r => setTimeout(r, delay));
+        }
       }
     }
-  }
 
-  console.error('Failed to load books after retries:', lastError);
-  const grid = document.getElementById('books-grid');
-  if (grid) {
-    grid.innerHTML = `
-      <div class="error-state" style="grid-column: 1/-1; text-align: center; padding: 3rem 1rem;">
-        <i class="fas fa-exclamation-triangle" style="font-size: 2.5rem; color: #ef4444; margin-bottom: 1rem;"></i>
-        <h3>Could not load books</h3>
-        <p>Please check your internet or server connection.</p>
-        <button class="btn btn-secondary mt-4" onclick="fetchBooks()">Retry Loading</button>
-      </div>
-    `;
+    console.error('Failed to load books after retries:', lastError);
+    // Only display error state if we have NO books loaded
+    if (!state.books || state.books.length === 0) {
+      const grid = document.getElementById('books-grid');
+      if (grid) {
+        grid.innerHTML = `
+          <div class="error-state" style="grid-column: 1/-1; text-align: center; padding: 3rem 1rem;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 2.5rem; color: #ef4444; margin-bottom: 1rem;"></i>
+            <h3>Could not load books</h3>
+            <p>Please check your internet or server connection.</p>
+            <button class="btn btn-secondary mt-4" onclick="fetchBooks(3, true)">Retry Loading</button>
+          </div>
+        `;
+      }
+    } else {
+      renderBooks();
+    }
+  } finally {
+    isFetchingBooks = false;
   }
 }
 
