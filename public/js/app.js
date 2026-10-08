@@ -810,14 +810,46 @@ function renderCart() {
   container.innerHTML = state.cart.map(item => {
     subtotalPaise += item.price;
     const priceStr = `₹${(item.price / 100).toFixed(0)}`;
+    const book = state.books.find(b => b.id === item.id || b.slug === item.slug);
+    const category = item.category || book?.category || '';
+    const meta = categoryMeta[category] || { color1: '#1e293b', color2: '#3b82f6', icon: 'fa-book' };
+    const coverUrl = item.cover_image || book?.cover_image || book?.cover || '';
+
+    let coverHtml = '';
+    if (item.type === 'bundle') {
+      coverHtml = `
+        <div class="cart-item-cover-wrap bundle-cover">
+          <div class="cart-item-placeholder bundle-placeholder">
+            <i class="fas fa-layer-group"></i>
+            <span class="cart-placeholder-tag">Bundle</span>
+          </div>
+        </div>
+      `;
+    } else if (coverUrl) {
+      coverHtml = `
+        <div class="cart-item-cover-wrap">
+          <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item.title)}" class="cart-item-img" onerror="this.parentElement.innerHTML='<div class=\\'cart-item-placeholder\\' style=\\'background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});\\'><i class=\\'fas ${meta.icon}\\'></i></div>'">
+        </div>
+      `;
+    } else {
+      coverHtml = `
+        <div class="cart-item-cover-wrap">
+          <div class="cart-item-placeholder" style="background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});">
+            <i class="fas ${meta.icon}"></i>
+          </div>
+        </div>
+      `;
+    }
+
     return `
-      <div class="cart-item">
+      <div class="cart-item" data-id="${escapeHtml(item.id)}">
+        ${coverHtml}
         <div class="cart-item-info">
           <div class="cart-item-title">${escapeHtml(item.title)}</div>
-          <div class="cart-item-badge">${item.type === 'bundle' ? '19 eBooks Bundle' : 'Single eBook'}</div>
+          <div class="cart-item-badge">${item.type === 'bundle' ? '19 eBooks Bundle' : (formatCategory(category) || 'Single eBook')}</div>
           <div class="cart-item-price">${priceStr}</div>
         </div>
-        <button class="cart-remove-btn" onclick="removeFromCart('${item.id}')" aria-label="Remove from Cart" title="Remove from Cart">
+        <button class="cart-remove-btn" onclick="removeFromCart('${escapeHtml(item.id)}')" aria-label="Remove ${escapeHtml(item.title)} from Cart" title="Remove from Cart">
           <i class="fas fa-trash-alt"></i> Remove
         </button>
       </div>
