@@ -1716,17 +1716,27 @@ footer {
 }
 
 .cart-remove-btn {
-  background: transparent;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
   color: #ef4444;
   cursor: pointer;
-  padding: 0.5rem;
-  font-size: 1rem;
-  transition: transform 0.2s;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .cart-remove-btn:hover {
-  transform: scale(1.15);
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 .empty-cart, .empty-library {

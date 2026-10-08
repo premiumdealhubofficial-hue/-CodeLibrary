@@ -441,8 +441,8 @@ function renderBooks() {
             <button class="btn btn-secondary btn-sm" data-action="view-details" data-slug="${escapeHtml(book.slug)}" data-id="${escapeHtml(book.id)}">
               <i class="fas fa-info-circle"></i> View Details
             </button>
-            <button class="btn btn-primary btn-sm ${inCart ? 'in-cart' : ''}" data-action="add-to-cart" data-id="${escapeHtml(book.id)}">
-              <i class="fas ${inCart ? 'fa-check' : 'fa-cart-plus'}"></i> ${inCart ? 'In Cart' : 'Add to Cart'}
+            <button class="btn btn-primary btn-sm ${inCart ? 'in-cart' : ''}" data-action="add-to-cart" data-id="${escapeHtml(book.id)}" title="${inCart ? 'In cart (click to remove)' : 'Add to cart'}">
+              <i class="fas ${inCart ? 'fa-check' : 'fa-cart-plus'}"></i> ${inCart ? '✓ Added to Cart' : 'Add to Cart'}
             </button>
           </div>
           <button class="btn btn-outline btn-block btn-buy-direct" data-action="buy-now" data-id="${escapeHtml(book.id)}">
@@ -516,8 +516,8 @@ window.openBookDetail = async function(slugOrId) {
           ` : ''}
 
           <div class="detail-actions">
-            <button class="btn btn-secondary btn-large" data-action="add-to-cart" data-id="${escapeHtml(book.id)}" onclick="addToCart('${escapeHtml(book.id)}', 'book'); closeModals();">
-              <i class="fas fa-cart-plus"></i> Add to Cart
+            <button class="btn ${inCart ? 'btn-primary in-cart' : 'btn-secondary'} btn-large" data-action="add-to-cart" data-id="${escapeHtml(book.id)}" onclick="addToCart('${escapeHtml(book.id)}', 'book'); openBookDetail('${escapeHtml(book.slug || book.id)}');">
+              <i class="fas ${inCart ? 'fa-check' : 'fa-cart-plus'}"></i> ${inCart ? '✓ Added to Cart' : 'Add to Cart'}
             </button>
             <button class="btn btn-primary btn-large btn-glow" data-action="buy-now" data-id="${escapeHtml(book.id)}" onclick="buyNow('${escapeHtml(book.id)}', 'book')">
               Buy Now &rarr;
@@ -641,7 +641,18 @@ function initSearch() {
 function loadCart() {
   try {
     const saved = localStorage.getItem('codelibrary_cart');
-    state.cart = saved ? JSON.parse(saved) : [];
+    const rawCart = saved ? JSON.parse(saved) : [];
+    if (Array.isArray(rawCart)) {
+      const seen = new Set();
+      state.cart = rawCart.filter(item => {
+        const key = item.id || item.slug;
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    } else {
+      state.cart = [];
+    }
   } catch (e) {
     state.cart = [];
   }
@@ -660,15 +671,27 @@ window.addToCart = async function(id, type = 'book') {
     if (!state.bundle || state.bundle.price == null) {
       await fetchBundle();
     }
-    // If bundle is added, replace individual books with bundle to save money
-    state.cart = [{
-      id: state.bundle?.id || 'bundle',
-      type: 'bundle',
-      slug: state.bundle?.slug || 'complete-programming-bundle',
-      title: state.bundle?.title || 'Complete Programming Bundle (All 19 eBooks)',
-      price: state.bundle?.price != null ? state.bundle.price : 0
-    }];
-    showToast('Complete Programming Bundle added to cart!', 'success');
+    // Check if bundle is already in cart -> toggle remove!
+    const bundleIndex = state.cart.findIndex(i => i.type === 'bundle' || i.id === (state.bundle?.id || 'bundle'));
+    if (bundleIndex !== -1) {
+      state.cart.splice(bundleIndex, 1);
+      if (state.cart.length === 0) {
+        state.appliedCoupon = null;
+      } else if (state.appliedCoupon) {
+        await recalculateAppliedCoupon();
+      }
+      showToast('Complete Programming Bundle removed from cart', 'info');
+    } else {
+      // If bundle is added, replace individual books with bundle to save money
+      state.cart = [{
+        id: state.bundle?.id || 'bundle',
+        type: 'bundle',
+        slug: state.bundle?.slug || 'complete-programming-bundle',
+        title: state.bundle?.title || 'Complete Programming Bundle (All 19 eBooks)',
+        price: state.bundle?.price != null ? state.bundle.price : 0
+      }];
+      showToast('Complete Programming Bundle added to cart!', 'success');
+    }
   } else {
     // Check if bundle is already in cart
     if (state.cart.some(i => i.type === 'bundle')) {
@@ -679,29 +702,35 @@ window.addToCart = async function(id, type = 'book') {
     const book = state.books.find(b => b.id === id || b.slug === id);
     if (!book) return;
 
-    // Check duplicate
-    if (state.cart.some(i => i.id === book.id || i.slug === book.slug)) {
-      showToast('This eBook is already in your cart.', 'info');
-      return;
+    // Toggle behavior: If eBook is already in cart, remove it; otherwise, add it
+    const existingIndex = state.cart.findIndex(i => i.id === book.id || i.slug === book.slug);
+    if (existingIndex !== -1) {
+      state.cart.splice(existingIndex, 1);
+      if (state.cart.length === 0) {
+        state.appliedCoupon = null;
+      } else if (state.appliedCoupon) {
+        await recalculateAppliedCoupon();
+      }
+      showToast(`"${book.title}" removed from cart`, 'info');
+    } else {
+      state.cart.push({
+        id: book.id,
+        type: 'book',
+        slug: book.slug,
+        title: book.title,
+        price: book.price,
+        category: book.category,
+        cover_image: book.cover_image || book.cover
+      });
+      showToast(`"${book.title}" added to cart!`, 'success');
     }
-
-    state.cart.push({
-      id: book.id,
-      type: 'book',
-      slug: book.slug,
-      title: book.title,
-      price: book.price,
-      category: book.category,
-      cover_image: book.cover_image || book.cover
-    });
-    showToast(`"${book.title}" added to cart!`, 'success');
   }
 
   saveCart();
 };
 
 window.removeFromCart = async function(id) {
-  state.cart = state.cart.filter(item => item.id !== id);
+  state.cart = state.cart.filter(item => item.id !== id && item.slug !== id);
   if (state.cart.length === 0) {
     state.appliedCoupon = null;
   } else if (state.appliedCoupon) {
@@ -788,8 +817,8 @@ function renderCart() {
           <div class="cart-item-badge">${item.type === 'bundle' ? '19 eBooks Bundle' : 'Single eBook'}</div>
           <div class="cart-item-price">${priceStr}</div>
         </div>
-        <button class="cart-remove-btn" onclick="removeFromCart('${item.id}')" aria-label="Remove Item" title="Remove">
-          <i class="fas fa-trash-alt"></i>
+        <button class="cart-remove-btn" onclick="removeFromCart('${item.id}')" aria-label="Remove from Cart" title="Remove from Cart">
+          <i class="fas fa-trash-alt"></i> Remove
         </button>
       </div>
     `;
