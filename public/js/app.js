@@ -183,24 +183,29 @@ async function fetchBooks(maxRetries = 3) {
 
   while (attempt < maxRetries) {
     try {
-      let data;
-      try {
-        data = await api('/api/books');
-      } catch (e) {
-        const res = await fetch('/api/books');
-        if (res.ok) {
-          data = await res.json();
-        } else {
-          throw e;
-        }
+      const res = await fetch('/api/books', {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-cache'
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
 
-      if (Array.isArray(data)) {
-        state.books = data;
+      const data = await res.json();
+      const booksList = Array.isArray(data) ? data : (data && Array.isArray(data.books) ? data.books : []);
+
+      if (booksList.length > 0) {
+        state.books = booksList;
         state.activeFilter = (state.activeFilter || 'all').toLowerCase().trim();
         renderBooks();
         renderBundle();
+        if (typeof initStandingBooksShowcase === 'function') {
+          initStandingBooksShowcase();
+        }
         return;
+      } else {
+        throw new Error('No books found in catalog response');
       }
     } catch (err) {
       lastError = err;
@@ -225,6 +230,9 @@ async function fetchBooks(maxRetries = 3) {
     `;
   }
 }
+
+window.fetchBooks = fetchBooks;
+window.renderBooks = renderBooks;
 
 async function fetchBundle() {
   try {

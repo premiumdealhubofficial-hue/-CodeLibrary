@@ -11,8 +11,16 @@ async function initStandingBooksShowcase() {
     if (window.state && Array.isArray(window.state.books) && window.state.books.length > 0) {
       books = window.state.books;
     } else {
-      const res = await fetch('/api/books');
-      if (res.ok) books = await res.json();
+      const res = await fetch('/api/books', { cache: 'no-cache' });
+      if (res.ok) {
+        books = await res.json();
+        if (window.state && (!window.state.books || window.state.books.length === 0)) {
+          window.state.books = books;
+          if (typeof window.renderBooks === 'function') {
+            window.renderBooks();
+          }
+        }
+      }
     }
 
     if (!Array.isArray(books) || books.length === 0) return;
