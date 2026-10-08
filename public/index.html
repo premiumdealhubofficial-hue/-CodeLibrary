@@ -10,7 +10,7 @@
     <meta property="og:description" content="Premium programming eBooks with practical examples, clear explanations, and instant digital access.">
     <meta property="og:type" content="website">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=2.9">
+    <link rel="stylesheet" href="css/style.css?v=3.0">
 </head>
 <body>
     <!-- Sticky Navigation Header -->
@@ -553,31 +553,29 @@
                 </div>
 
                 <!-- Customer Checkout Details -->
-                <div class="cart-customer-section" style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-                        <i class="fas fa-user-edit" style="color: var(--accent-blue);"></i> Customer Details
-                    </h4>
-                    <div class="form-group" style="margin-bottom: 0.6rem;">
-                        <label for="checkout-name" style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Full Name *</label>
-                        <input type="text" id="checkout-name" class="form-control" placeholder="e.g. John Doe" required style="width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem;">
+                <div class="cart-customer-section">
+                    <h4><i class="fas fa-user-edit"></i> Customer Details</h4>
+                    <div class="form-group">
+                        <label for="checkout-name">Full Name *</label>
+                        <input type="text" id="checkout-name" class="form-control" placeholder="e.g. John Doe" required>
                     </div>
-                    <div class="form-group" style="margin-bottom: 0.6rem;">
-                        <label for="checkout-email" style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Email Address * (for order confirmation & invoice)</label>
-                        <input type="email" id="checkout-email" class="form-control" placeholder="e.g. john@example.com" required style="width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem;">
+                    <div class="form-group">
+                        <label for="checkout-email">Email Address * (for order confirmation & invoice)</label>
+                        <input type="email" id="checkout-email" class="form-control" placeholder="e.g. john@example.com" required>
                     </div>
-                    <div class="form-group" style="margin-bottom: 0.75rem;">
-                        <label for="checkout-phone" style="font-size: 0.8rem; font-weight: 600; display: block; margin-bottom: 0.25rem;">Mobile Number *</label>
-                        <input type="tel" id="checkout-phone" class="form-control" placeholder="e.g. 9876543210" required style="width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem;">
+                    <div class="form-group">
+                        <label for="checkout-phone">Mobile Number *</label>
+                        <input type="tel" id="checkout-phone" class="form-control" placeholder="e.g. 9876543210" required>
                     </div>
                 </div>
 
                 <!-- WhatsApp Help Callout in Cart -->
-                <div class="cart-whatsapp-help" style="margin: 0.85rem 0; padding: 0.65rem 0.85rem; background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.22); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem;">
-                    <div style="display: flex; align-items: center; gap: 0.45rem; color: var(--text-primary);">
-                        <i class="fab fa-whatsapp" style="color: #25D366; font-size: 1.15rem;"></i>
+                <div class="cart-whatsapp-help">
+                    <div class="whatsapp-help-left">
+                        <i class="fab fa-whatsapp"></i>
                         <span>Need Help?</span>
                     </div>
-                    <a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" style="color: #25D366; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem;">
+                    <a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer">
                         Chat on WhatsApp &rarr;
                     </a>
                 </div>
@@ -724,7 +722,7 @@
     <div id="toast-container"></div>
 
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script src="js/hero.js?v=2.9"></script>
-    <script src="js/app.js?v=2.9"></script>
+    <script src="js/hero.js?v=3.0"></script>
+    <script src="js/app.js?v=3.0"></script>
 </body>
 </html>
