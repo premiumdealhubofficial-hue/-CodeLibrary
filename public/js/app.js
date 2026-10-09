@@ -436,7 +436,6 @@ function renderBooks() {
             <div class="book-rating"><i class="fas fa-star"></i> <span>${ratingDisplay}</span></div>
             <div class="book-price">${priceDisplay}</div>
           </div>
-          <p class="book-desc-short">${escapeHtml(book.short_description || '')}</p>
           <div class="book-actions">
             <button class="btn btn-secondary btn-sm" data-action="view-details" data-slug="${escapeHtml(book.slug)}" data-id="${escapeHtml(book.id)}">
               <i class="fas fa-info-circle"></i> View Details
