@@ -1540,6 +1540,12 @@ function showToast(message, type = 'info') {
 }
 
 // Utility Helpers
+function formatCurrency(amountInPaise) {
+  if (amountInPaise == null || isNaN(amountInPaise)) return '₹0';
+  const rupees = Math.round(Number(amountInPaise) / 100);
+  return '₹' + rupees.toLocaleString('en-IN');
+}
+
 function formatCategory(cat) {
   if (!cat) return 'Programming';
   return cat.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
