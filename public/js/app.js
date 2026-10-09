@@ -1091,9 +1091,10 @@ async function executeCheckout() {
     });
 
     // Launch Razorpay
-    if (typeof Razorpay !== 'undefined' && orderData.razorpay_key_id && !orderData.razorpay_key_id.includes('xxxx') && !orderData.razorpay_key_id.includes('placeholder')) {
+    const rzpKey = (orderData.razorpay_key_id || '').trim();
+    if (typeof Razorpay !== 'undefined' && rzpKey && !rzpKey.includes('xxxx') && !rzpKey.includes('placeholder')) {
       const options = {
-        key: orderData.razorpay_key_id,
+        key: rzpKey,
         amount: orderData.amount,
         currency: 'INR',
         name: 'CodeLibrary',
@@ -1120,6 +1121,14 @@ async function executeCheckout() {
         }
       };
       const rzp = new Razorpay(options);
+      rzp.on('payment.failed', function (response) {
+        console.error('Razorpay payment failed:', response.error);
+        showToast(response.error?.description || response.error?.reason || 'Payment could not be processed. Please try again.', 'error');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = 'Proceed to Pay &rarr;';
+        }
+      });
       rzp.open();
     } else {
       // Test mode / Simulated secure verification

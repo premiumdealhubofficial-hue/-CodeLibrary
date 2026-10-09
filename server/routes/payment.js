@@ -163,44 +163,51 @@ router.post('/create-order', async (req, res) => {
   try {
     let resolvedItems = [];
 
-    if (product_type === 'book') {
-      const book = db.prepare('SELECT id, title, slug, price, cover_image, category FROM books WHERE (id = ? OR slug = ?) AND is_published = 1').get(product_id, product_id);
-      if (!book) return res.status(404).json({ error: 'Book not found or unavailable' });
-      subtotal = book.price;
-      orderDescription = `eBook: ${book.title}`;
-      resolvedItems.push({ id: book.id, title: book.title, slug: book.slug, price: book.price, type: 'book', cover_image: book.cover_image });
-    } else if (product_type === 'bundle') {
-      const bundle = db.prepare("SELECT id, title, slug, price, books FROM bundles WHERE (id = ? OR slug = ? OR ? = 'bundle') AND is_active = 1").get(product_id, product_id, product_id);
-      if (!bundle) return res.status(404).json({ error: 'Bundle not found or unavailable' });
-      subtotal = bundle.price;
-      orderDescription = bundle.title;
-      resolvedItems.push({ id: bundle.id, title: bundle.title, slug: bundle.slug, price: bundle.price, type: 'bundle', books: bundle.books });
-    } else if (items && Array.isArray(items) && items.length > 0) {
-      // Multiple items cart purchase
+    if (items && Array.isArray(items) && items.length > 0) {
       let calculatedAmount = 0;
       for (const item of items) {
-        if (item.type === 'bundle' || item.is_bundle) {
-          const b = db.prepare("SELECT id, title, slug, price, books FROM bundles WHERE (id = ? OR slug = ? OR ? = 'bundle') AND is_active = 1").get(item.id, item.id, item.id);
+        const itemType = (item.type || '').toLowerCase();
+        const itemId = String(item.id || item.slug || '').trim();
+        if (itemType === 'bundle' || item.is_bundle || itemId === 'bundle' || itemId === 'complete-programming-bundle') {
+          const b = db.prepare("SELECT id, title, slug, price, books FROM bundles WHERE (id = ? OR slug = ? OR lower(slug) = lower(?) OR ? = 'bundle') AND is_active = 1").get(itemId, itemId, itemId, itemId);
           if (b) {
             calculatedAmount += b.price;
             resolvedItems.push({ id: b.id, title: b.title, slug: b.slug, price: b.price, type: 'bundle', books: b.books });
           } else if (item.price) {
             calculatedAmount += Number(item.price);
-            resolvedItems.push(item);
+            resolvedItems.push({ id: item.id || 'bundle', title: item.title || 'Complete Programming Bundle', slug: item.slug || 'complete-programming-bundle', price: Number(item.price), type: 'bundle' });
           }
         } else {
-          const bk = db.prepare('SELECT id, title, slug, price, cover_image, category FROM books WHERE (id = ? OR slug = ?) AND is_published = 1').get(item.id, item.id || item.slug);
+          const bk = db.prepare('SELECT id, title, slug, price, cover_image, category FROM books WHERE (id = ? OR slug = ? OR lower(slug) = lower(?)) AND is_published = 1').get(itemId, itemId, itemId);
           if (bk) {
             calculatedAmount += bk.price;
             resolvedItems.push({ id: bk.id, title: bk.title, slug: bk.slug, price: bk.price, type: 'book', cover_image: bk.cover_image });
-          } else if (item.price) {
-            calculatedAmount += Number(item.price);
-            resolvedItems.push(item);
+          } else {
+            const fallbackBk = db.prepare('SELECT id, title, slug, price, cover_image, category FROM books WHERE (id = ? OR slug = ? OR lower(slug) = lower(?))').get(itemId, itemId, itemId);
+            if (fallbackBk) {
+              calculatedAmount += fallbackBk.price;
+              resolvedItems.push({ id: fallbackBk.id, title: fallbackBk.title, slug: fallbackBk.slug, price: fallbackBk.price, type: 'book', cover_image: fallbackBk.cover_image });
+            } else if (item.price) {
+              calculatedAmount += Number(item.price);
+              resolvedItems.push(item);
+            }
           }
         }
       }
       subtotal = calculatedAmount;
-      orderDescription = `CodeLibrary Cart (${resolvedItems.length} items)`;
+      orderDescription = resolvedItems.length === 1 ? (resolvedItems[0].type === 'bundle' ? resolvedItems[0].title : `eBook: ${resolvedItems[0].title}`) : `CodeLibrary Cart (${resolvedItems.length} items)`;
+    } else if (product_type === 'bundle' || product_id === 'bundle' || product_id === 'complete-programming-bundle') {
+      const bundle = db.prepare("SELECT id, title, slug, price, books FROM bundles WHERE (id = ? OR slug = ? OR lower(slug) = lower(?) OR ? = 'bundle') AND is_active = 1").get(product_id, product_id, product_id, product_id);
+      if (!bundle) return res.status(404).json({ error: 'Bundle not found or unavailable' });
+      subtotal = bundle.price;
+      orderDescription = bundle.title;
+      resolvedItems.push({ id: bundle.id, title: bundle.title, slug: bundle.slug, price: bundle.price, type: 'bundle', books: bundle.books });
+    } else if (product_type === 'book' || product_id) {
+      const book = db.prepare('SELECT id, title, slug, price, cover_image, category FROM books WHERE (id = ? OR slug = ? OR lower(slug) = lower(?)) AND is_published = 1').get(product_id, product_id, product_id);
+      if (!book) return res.status(404).json({ error: 'Book not found or unavailable' });
+      subtotal = book.price;
+      orderDescription = `eBook: ${book.title}`;
+      resolvedItems.push({ id: book.id, title: book.title, slug: book.slug, price: book.price, type: 'book', cover_image: book.cover_image });
     } else {
       return res.status(400).json({ error: 'Invalid product specifications or empty cart' });
     }
@@ -241,35 +248,45 @@ router.post('/create-order', async (req, res) => {
 
     const order_id = uuidv4();
     const downloadToken = crypto.randomBytes(24).toString('hex');
-    let rzp_order_id = `order_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const finalProductId = product_id || (resolvedItems.length > 0 ? resolvedItems[0].id : 'cart');
+    const finalProductType = product_type || (resolvedItems.length === 1 ? resolvedItems[0].type : 'cart');
+    const itemsJson = JSON.stringify(resolvedItems);
 
-    // If Razorpay live/test SDK is configured with non-placeholder keys
-    if (config.RAZORPAY_KEY_ID && config.RAZORPAY_KEY_SECRET && !config.RAZORPAY_KEY_ID.includes('xxxx') && !config.RAZORPAY_KEY_ID.includes('placeholder')) {
+    let rzp_order_id = `order_test_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const isRazorpayConfigured = config.RAZORPAY_KEY_ID && 
+                                 config.RAZORPAY_KEY_SECRET && 
+                                 !config.RAZORPAY_KEY_ID.includes('xxxx') && 
+                                 !config.RAZORPAY_KEY_ID.includes('placeholder') && 
+                                 !config.RAZORPAY_KEY_SECRET.includes('your_razorpay');
+
+    if (isRazorpayConfigured) {
       try {
         const Razorpay = require('razorpay');
         const rzp = new Razorpay({ key_id: config.RAZORPAY_KEY_ID, key_secret: config.RAZORPAY_KEY_SECRET });
         const rzpOrder = await rzp.orders.create({
           amount: finalAmount,
           currency: 'INR',
-          receipt: order_id.substring(0, 40),
+          receipt: order_id.replace(/-/g, '').substring(0, 40),
           notes: {
             customer_name: cleanName || 'Customer',
             customer_email: cleanEmail || 'customer@example.com',
             customer_phone: cleanPhone || '',
-            product_type: product_type || 'cart',
-            product_id: product_id || 'cart',
+            product_type: finalProductType,
+            product_id: String(finalProductId),
             coupon_code: appliedCouponCode || 'none'
           }
         });
-        rzp_order_id = rzpOrder.id;
+        if (rzpOrder && rzpOrder.id) {
+          rzp_order_id = rzpOrder.id;
+        } else {
+          throw new Error('No order ID received from payment gateway');
+        }
       } catch (rzpErr) {
-        console.warn('Razorpay API notice (using fallback order ID):', rzpErr.message);
+        console.error('Razorpay order creation error:', rzpErr.error || rzpErr.message || rzpErr);
+        const errMsg = (rzpErr.error && rzpErr.error.description) ? rzpErr.error.description : (rzpErr.message || 'Payment gateway initialization failed');
+        return res.status(500).json({ error: errMsg });
       }
     }
-
-    const finalProductId = product_id || (resolvedItems.length > 0 ? resolvedItems[0].id : 'cart');
-    const finalProductType = product_type || 'cart';
-    const itemsJson = JSON.stringify(resolvedItems);
 
     db.prepare(`
       INSERT INTO orders (id, customer_id, customer_name, customer_email, customer_phone, items_json, download_token, order_type, product_id, amount, status, razorpay_order_id, coupon_code, discount_amount, original_amount)
@@ -304,17 +321,7 @@ router.post('/verify', (req, res) => {
   const db = getDb();
   
   if (!razorpay_order_id && !directOrderId) {
-    return res.status(400).json({ error: 'Missing Razorpay Order ID' });
-  }
-
-  // Cryptographic signature check when real secret is configured
-  if (config.RAZORPAY_KEY_SECRET && !config.RAZORPAY_KEY_SECRET.includes('your_razorpay') && razorpay_signature) {
-    const hmac = crypto.createHmac('sha256', config.RAZORPAY_KEY_SECRET);
-    hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
-    const expectedSignature = hmac.digest('hex');
-    if (expectedSignature !== razorpay_signature) {
-      return res.status(400).json({ error: 'Payment signature verification failed' });
-    }
+    return res.status(400).json({ success: false, error: 'Missing order details for verification' });
   }
 
   const order = db.prepare(`
@@ -323,7 +330,27 @@ router.post('/verify', (req, res) => {
   `).get(razorpay_order_id || '', directOrderId || '');
 
   if (!order) {
-    return res.status(404).json({ error: 'Order record not found' });
+    return res.status(404).json({ success: false, error: 'Order record not found' });
+  }
+
+  const isRazorpayConfigured = config.RAZORPAY_KEY_ID && 
+                               config.RAZORPAY_KEY_SECRET && 
+                               !config.RAZORPAY_KEY_ID.includes('xxxx') && 
+                               !config.RAZORPAY_KEY_ID.includes('placeholder') && 
+                               !config.RAZORPAY_KEY_SECRET.includes('your_razorpay');
+
+  // Cryptographic signature check when real secret is configured
+  if (isRazorpayConfigured) {
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, error: 'Missing payment signature verification parameters' });
+    }
+    const hmac = crypto.createHmac('sha256', config.RAZORPAY_KEY_SECRET);
+    hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
+    const expectedSignature = hmac.digest('hex');
+    if (expectedSignature !== razorpay_signature) {
+      console.error(`Signature mismatch for order ${order.id}: expected ${expectedSignature}, received ${razorpay_signature}`);
+      return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
+    }
   }
 
   const paymentId = razorpay_payment_id || `pay_${Date.now()}`;
