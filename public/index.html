@@ -10,7 +10,7 @@
     <meta property="og:description" content="Premium programming eBooks with practical examples, clear explanations, and instant digital access.">
     <meta property="og:type" content="website">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=3.4">
+    <link rel="stylesheet" href="css/style.css?v=3.5">
 </head>
 <body>
     <!-- Sticky Navigation Header -->
@@ -201,16 +201,21 @@
         <section id="bundle" class="section">
             <div class="container">
                 <div class="bundle-card">
-                    <div class="bundle-badge">
-                        <i class="fas fa-fire"></i> Best Value • Complete Collection
-                    </div>
                     <div class="bundle-grid-layout">
-                        <div class="bundle-info">
+                        <!-- Left Side: 3D Layered Book Stack (Real Covers) -->
+                        <div class="bundle-visual-col">
+                            <div class="bundle-stack-wrapper" id="bundle-book-stack">
+                                <!-- Real book covers injected dynamically via JavaScript -->
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Clean Compact Details & Pricing -->
+                        <div class="bundle-info-col">
+                            <div class="bundle-badge">
+                                <i class="fas fa-fire"></i> Best Value • Complete Collection
+                            </div>
                             <h2 class="bundle-title">Complete Programming Bundle</h2>
-                            <p class="bundle-tagline">19 eBooks • Complete Collection</p>
-                            <p class="bundle-desc">
-                                Get instant, lifetime access to all 19 programming and computer science eBooks. Master full-stack web development, Python, C++, Java, Data Science, AI, DSA, Operating Systems, Computer Networks, and Databases in one cohesive bundle.
-                            </p>
+                            <p class="bundle-tagline"><i class="fas fa-layer-group"></i> All 19 eBooks</p>
                             
                             <div class="bundle-price-box">
                                 <div class="price-container">
@@ -218,7 +223,7 @@
                                     <span class="current-price"></span>
                                     <span class="save-badge"></span>
                                 </div>
-                                <p class="price-note">One-time payment • Instant digital download</p>
+                                <p class="price-note">One-time payment • Instant digital access</p>
                             </div>
 
                             <div class="bundle-actions">
@@ -229,18 +234,6 @@
                                     <i class="fas fa-cart-plus"></i> Add Bundle to Cart
                                 </button>
                             </div>
-                        </div>
-
-                        <div class="bundle-features-box">
-                            <h3>What's Included in the Bundle:</h3>
-                            <ul class="bundle-checklist">
-                                <li><i class="fas fa-check-circle"></i> <strong>All 19 Programming eBooks</strong> (Web, AI, Systems, DSA)</li>
-                                <li><i class="fas fa-check-circle"></i> Instant PDF delivery & lifetime access</li>
-                                <li><i class="fas fa-check-circle"></i> Step-by-step code samples & runnable projects</li>
-                                <li><i class="fas fa-check-circle"></i> Free future updates and editions</li>
-                                <li><i class="fas fa-check-circle"></i> Read on Computer, Tablet, or Mobile (Phone)</li>
-                                <li><i class="fas fa-check-circle"></i> 100% Secure encrypted Razorpay payment</li>
-                            </ul>
                         </div>
                     </div>
                 </div>
@@ -717,7 +710,7 @@
     <div id="toast-container"></div>
 
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script src="js/hero.js?v=3.4"></script>
-    <script src="js/app.js?v=3.4"></script>
+    <script src="js/hero.js?v=3.5"></script>
+    <script src="js/app.js?v=3.5"></script>
 </body>
 </html>

@@ -776,6 +776,38 @@
     </div>
   </div>
 
+  <!-- Add/Edit Bundle Modal -->
+  <div id="bundle-modal" class="admin-modal">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h2 id="bundle-modal-title">Edit Bundle Price</h2>
+        <button class="close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="bundle-form">
+          <input type="hidden" id="bundle-modal-id">
+          <div class="form-group">
+            <label for="bundle-modal-name">Bundle Name</label>
+            <input type="text" id="bundle-modal-name" class="form-control" readonly style="opacity: 0.8; cursor: not-allowed;">
+          </div>
+          <div class="form-group">
+            <label for="bundle-modal-price">Bundle Price (in ₹) *</label>
+            <input type="number" id="bundle-modal-price" class="form-control" required min="1" step="1" placeholder="299">
+            <small class="text-secondary" style="font-size: 0.8rem; display: block; margin-top: 0.3rem;">
+              Updated price is automatically synchronized across the website bundle card, shopping cart, checkout modal, and Razorpay orders.
+            </small>
+          </div>
+          <div class="modal-actions" style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+            <button type="button" class="btn btn-outline close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-bundle-modal">
+              <i class="fas fa-save"></i> Save Bundle Price
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Order Detail Modal -->
   <div id="order-modal" class="admin-modal">
     <div class="modal-content">
@@ -834,6 +866,6 @@
   <!-- Toast Notification Container -->
   <div id="toast-container"></div>
 
-  <script src="/js/admin.js"></script>
+  <script src="/js/admin.js?v=3.5"></script>
 </body>
 </html>

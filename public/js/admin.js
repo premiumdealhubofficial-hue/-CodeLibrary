@@ -606,6 +606,9 @@ document.addEventListener('click', (e) => {
   } else if (action === 'delete-book') {
     e.preventDefault();
     window.handleDeleteBook(id);
+  } else if (action === 'edit-bundle') {
+    e.preventDefault();
+    window.showEditBundleModal(id);
   }
 });
 
@@ -636,7 +639,12 @@ const renderBundles = (bundles) => {
           <h3>${escapeHtml(b.title || b.name)}</h3>
           <p class="text-secondary">${b.books ? b.books.length : 0} eBooks Included</p>
         </div>
-        <span class="badge ${b.status === 'Active' ? 'success' : 'warning'}">${b.status}</span>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span class="badge ${b.status === 'Active' ? 'success' : 'warning'}">${b.status}</span>
+          <button class="btn btn-sm btn-outline" data-action="edit-bundle" data-id="${b.id}" onclick="showEditBundleModal('${b.id}')" title="Edit Bundle Price">
+            <i class="fas fa-edit"></i> Edit Price
+          </button>
+        </div>
       </div>
       
       <p class="bundle-desc-admin">${escapeHtml(b.description || '')}</p>
@@ -644,8 +652,10 @@ const renderBundles = (bundles) => {
       <div class="form-group" style="margin-top: 1rem;">
         <label>Bundle Price (in ₹)</label>
         <div style="display: flex; gap: 0.5rem;">
-          <input type="number" id="bundle-price-${b.id}" class="form-control" value="${Math.round(b.price / 100)}" min="0">
-          <button class="btn btn-primary btn-sm" onclick="saveBundlePrice('${b.id}')">Update Price</button>
+          <input type="number" id="bundle-price-${b.id}" class="form-control" value="${Math.round(b.price / 100)}" min="1" step="1">
+          <button class="btn btn-primary btn-sm" onclick="saveBundlePrice('${b.id}')">
+            <i class="fas fa-save"></i> Update Price
+          </button>
         </div>
       </div>
 
@@ -663,18 +673,74 @@ const renderBundles = (bundles) => {
   `).join('');
 };
 
-window.saveBundlePrice = async (id) => {
-  const priceInput = document.getElementById(`bundle-price-${id}`);
-  const price = Math.round(parseFloat(priceInput.value) * 100);
+window.showEditBundleModal = (id) => {
+  if (!id && adminState.bundles && adminState.bundles.length > 0) {
+    id = adminState.bundles[0].id;
+  }
+  const bundle = (adminState.bundles || []).find(b => b.id === id || b.slug === id);
+  if (!bundle) {
+    showAdminToast('Bundle data not found', 'error');
+    return;
+  }
+
+  document.getElementById('bundle-modal-id').value = bundle.id;
+  document.getElementById('bundle-modal-name').value = bundle.title || bundle.name || 'Complete Programming Bundle';
+  document.getElementById('bundle-modal-price').value = Math.round(bundle.price / 100);
+  document.getElementById('bundle-modal-title').innerText = `Edit: ${bundle.title || bundle.name}`;
+  document.getElementById('bundle-modal').classList.add('active');
+};
+
+document.getElementById('bundle-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('bundle-modal-id').value;
+  const rawPrice = document.getElementById('bundle-modal-price').value;
+  const priceNum = parseFloat(rawPrice);
+
+  if (isNaN(priceNum) || priceNum <= 0) {
+    showAdminToast('Please enter a valid positive bundle price in ₹', 'error');
+    return;
+  }
+
+  const price = Math.round(priceNum * 100);
+  const btn = document.getElementById('btn-save-bundle-modal');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
   try {
     await adminApi(`/api/admin/bundles/${id}`, {
       method: 'PUT',
       body: { price }
     });
-    showAdminToast('Bundle price updated successfully', 'success');
+    showAdminToast(`Bundle price successfully updated to ₹${priceNum}`, 'success');
+    closeAllModals();
     loadBundles();
   } catch (err) {
-    showAdminToast('Failed to update bundle price', 'error');
+    showAdminToast(err.message || 'Failed to update bundle price', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-save"></i> Save Bundle Price';
+  }
+});
+
+window.saveBundlePrice = async (id) => {
+  const priceInput = document.getElementById(`bundle-price-${id}`);
+  if (!priceInput) return;
+  const rawVal = priceInput.value;
+  const num = parseFloat(rawVal);
+  if (isNaN(num) || num <= 0) {
+    showAdminToast('Please enter a valid positive bundle price in ₹', 'error');
+    return;
+  }
+  const price = Math.round(num * 100);
+  try {
+    await adminApi(`/api/admin/bundles/${id}`, {
+      method: 'PUT',
+      body: { price }
+    });
+    showAdminToast(`Bundle price successfully updated to ₹${num}`, 'success');
+    loadBundles();
+  } catch (err) {
+    showAdminToast(err.message || 'Failed to update bundle price', 'error');
   }
 };
 

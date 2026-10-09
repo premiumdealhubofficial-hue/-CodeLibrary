@@ -320,10 +320,53 @@ function renderBundle() {
     if (bundleCtaPriceEl) {
       bundleCtaPriceEl.textContent = `• ${bundlePriceFormatted}`;
     }
+
+    // 4. Render the 10-12 real eBook 3D layered cover stack
+    renderBundleStack();
   }
 
   // Sync any active cart items to current bundle price (4. Cart & 5. Checkout)
   syncCartWithLivePrices();
+}
+
+function renderBundleStack() {
+  const container = document.getElementById('bundle-book-stack');
+  if (!container) return;
+
+  if (!Array.isArray(state.books) || state.books.length === 0) {
+    container.innerHTML = `
+      <div class="bundle-stack-fallback">
+        <i class="fas fa-layer-group" style="font-size: 2rem;"></i>
+        <span>All 19 eBooks Included</span>
+      </div>
+    `;
+    return;
+  }
+
+  // Select 10 to 12 distinct real books with valid covers
+  const booksWithCovers = state.books.filter(b => b.cover_image || b.cover);
+  const stackBooks = booksWithCovers.slice(0, 11);
+
+  if (stackBooks.length === 0) return;
+
+  const total = stackBooks.length;
+  container.innerHTML = stackBooks.map((book, idx) => {
+    const coverUrl = book.cover_image || book.cover;
+    const webpUrl = coverUrl ? coverUrl.replace(/\.(png|jpe?g)$/i, '.webp') : '';
+    const relIdx = idx - Math.floor(total / 2);
+    const rot = (relIdx * 3.2).toFixed(1);
+    const xOffset = (idx * 24).toFixed(0);
+    const yOffset = (Math.abs(relIdx) * 2.5).toFixed(0);
+
+    return `
+      <div class="bundle-stack-book" style="--book-idx: ${idx}; --book-rot: ${rot}deg; --book-x: ${xOffset}px; --book-y: ${yOffset}px; z-index: ${idx + 1};" title="${escapeHtml(book.title)}">
+        <picture>
+          <source srcset="${escapeHtml(webpUrl)}" type="image/webp">
+          <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(book.title)}" class="bundle-stack-img" width="105" height="155" loading="lazy" decoding="async">
+        </picture>
+      </div>
+    `;
+  }).join('');
 }
 
 function syncCartWithLivePrices() {
