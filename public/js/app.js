@@ -154,7 +154,7 @@ function renderSocialMediaLinks(social) {
 
 // Theme Management
 function loadTheme() {
-  const saved = localStorage.getItem('codelibrary_theme') || 'dark';
+  const saved = localStorage.getItem('codelibrary_theme') || 'light';
   document.documentElement.setAttribute('data-theme', saved);
   updateThemeIcon(saved);
 }
