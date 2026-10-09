@@ -528,16 +528,15 @@ startxref
     }
   }
 
-  // 3. Complete Programming Bundle (All 19 eBooks for ₹399)
+  // 3. Complete Programming Bundle (All 19 eBooks - dynamic admin-managed price, default ₹299)
   const bundleSlug = 'complete-programming-bundle';
-  const existingBundle = db.prepare('SELECT id FROM bundles WHERE slug = ?').get(bundleSlug);
+  const existingBundle = db.prepare('SELECT id, price FROM bundles WHERE slug = ?').get(bundleSlug);
   
   if (existingBundle) {
     db.prepare(`
       UPDATE bundles SET
         title = 'Complete Programming Bundle',
         description = 'Get instant access to all 19 programming and computer science eBooks. Master web development, data science, AI, computer science, databases, and mobile development in one complete collection.',
-        price = 39900,
         books = ?,
         is_active = 1,
         updated_at = CURRENT_TIMESTAMP
@@ -552,7 +551,7 @@ startxref
       'Complete Programming Bundle',
       bundleSlug,
       'Get instant access to all 19 programming and computer science eBooks. Master web development, data science, AI, computer science, databases, and mobile development in one complete collection.',
-      39900,
+      29900,
       JSON.stringify(bookIds)
     );
   }

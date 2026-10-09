@@ -261,6 +261,8 @@ function getDb() {
       const { seedDatabase } = require('./seed');
       seedDatabase(dbInstance);
     }
+    // Update bundle price to 29900 if previously seeded at old default 39900
+    dbInstance.prepare("UPDATE bundles SET price = 29900 WHERE slug = 'complete-programming-bundle' AND price = 39900").run();
   } catch (err) {
     console.error('Database auto-initialization notice:', err.message);
   }
