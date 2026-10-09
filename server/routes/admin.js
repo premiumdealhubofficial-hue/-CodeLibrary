@@ -1261,4 +1261,76 @@ router.put('/settings/contact', (req, res) => {
   }
 });
 
+// ===================================================
+// Payment Gateway Settings Endpoints (Admin Only)
+// ===================================================
+router.get('/settings/payment', (req, res) => {
+  const db = getDb();
+  try {
+    const rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret', 'razorpay_live_key_id', 'razorpay_live_key_secret', 'razorpay_mode')").all();
+    const dbSettings = {};
+    for (const row of rows) {
+      dbSettings[row.key] = row.value;
+    }
+
+    const config = require('../utils/config');
+    const envKey = config.RAZORPAY_KEY_ID || '';
+    const hasEnvSecret = Boolean(config.RAZORPAY_KEY_SECRET && !config.RAZORPAY_KEY_SECRET.includes('your_razorpay') && !config.RAZORPAY_KEY_SECRET.includes('placeholder'));
+
+    const effectiveKey = dbSettings.razorpay_live_key_id || dbSettings.razorpay_key_id || envKey;
+    const isLive = effectiveKey.startsWith('rzp_live_');
+    const isTest = effectiveKey.startsWith('rzp_test_');
+
+    res.json({
+      success: true,
+      mode: isLive ? 'live' : (isTest ? 'test' : 'not_configured'),
+      active_key_prefix: effectiveKey ? effectiveKey.substring(0, 8) + '...' : null,
+      source: (dbSettings.razorpay_live_key_id || dbSettings.razorpay_key_id) ? 'database' : (envKey ? 'environment' : 'none'),
+      db_key_id: dbSettings.razorpay_key_id ? dbSettings.razorpay_key_id.substring(0, 8) + '...' : '',
+      db_has_secret: Boolean(dbSettings.razorpay_key_secret),
+      env_key_id: envKey ? envKey.substring(0, 8) + '...' : '',
+      env_has_secret: hasEnvSecret
+    });
+  } catch (err) {
+    console.error('Fetch payment settings error:', err);
+    res.status(500).json({ error: 'Failed to fetch payment settings' });
+  }
+});
+
+router.put('/settings/payment', (req, res) => {
+  const db = getDb();
+  const { razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret, razorpay_mode } = req.body || {};
+
+  try {
+    const upsertStmt = db.prepare(`
+      INSERT INTO settings (key, value, updated_at) 
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `);
+
+    if (razorpay_key_id !== undefined) {
+      upsertStmt.run('razorpay_key_id', (razorpay_key_id || '').trim());
+    }
+    if (razorpay_key_secret !== undefined && razorpay_key_secret.trim()) {
+      upsertStmt.run('razorpay_key_secret', razorpay_key_secret.trim());
+    }
+    if (razorpay_webhook_secret !== undefined) {
+      upsertStmt.run('razorpay_webhook_secret', (razorpay_webhook_secret || '').trim());
+    }
+    if (razorpay_mode !== undefined) {
+      upsertStmt.run('razorpay_mode', (razorpay_mode || '').trim().toLowerCase());
+    }
+
+    logAudit(db, req.admin.id, 'UPDATE_PAYMENT_SETTINGS', 'SETTINGS', 'razorpay', { key_id_prefix: (razorpay_key_id || '').substring(0, 8) }, req.ip);
+
+    res.json({
+      success: true,
+      message: 'Payment gateway configuration updated successfully'
+    });
+  } catch (err) {
+    console.error('Update payment settings error:', err);
+    res.status(500).json({ error: 'Failed to update payment settings: ' + err.message });
+  }
+});
+
 module.exports = router;

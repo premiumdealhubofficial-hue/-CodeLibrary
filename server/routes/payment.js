@@ -143,6 +143,66 @@ router.post('/validate-coupon', (req, res) => {
   }
 });
 
+// Helper to resolve effective Razorpay credentials (DB settings override or Environment variables)
+function getEffectiveRazorpayConfig(db) {
+  let dbKeyId = null;
+  let dbKeySecret = null;
+  let dbWebhookSecret = null;
+
+  if (db) {
+    try {
+      const rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret', 'razorpay_live_key_id', 'razorpay_live_key_secret')").all();
+      const map = {};
+      rows.forEach(r => { map[r.key] = (r.value || '').trim(); });
+
+      if (map.razorpay_live_key_id && map.razorpay_live_key_secret) {
+        dbKeyId = map.razorpay_live_key_id;
+        dbKeySecret = map.razorpay_live_key_secret;
+      } else if (map.razorpay_key_id && map.razorpay_key_secret) {
+        dbKeyId = map.razorpay_key_id;
+        dbKeySecret = map.razorpay_key_secret;
+      }
+      dbWebhookSecret = map.razorpay_webhook_secret || null;
+    } catch (e) {
+      // Ignore DB error
+    }
+  }
+
+  // If DB settings contain non-placeholder credentials, they take precedence
+  if (dbKeyId && dbKeySecret && !dbKeyId.includes('xxxx') && !dbKeyId.includes('placeholder')) {
+    const mode = dbKeyId.startsWith('rzp_live_') ? 'live' : (dbKeyId.startsWith('rzp_test_') ? 'test' : 'custom');
+    return {
+      keyId: dbKeyId,
+      keySecret: dbKeySecret,
+      webhookSecret: dbWebhookSecret || config.RAZORPAY_WEBHOOK_SECRET,
+      mode,
+      source: 'database',
+      isConfigured: true
+    };
+  }
+
+  // Otherwise use environment configuration
+  const envKey = config.RAZORPAY_KEY_ID;
+  const envSecret = config.RAZORPAY_KEY_SECRET;
+  const isEnvConfigured = Boolean(
+    envKey && 
+    envSecret && 
+    !envKey.includes('xxxx') && 
+    !envKey.includes('placeholder') && 
+    !envSecret.includes('your_razorpay')
+  );
+  const envMode = config.RAZORPAY_MODE || (envKey ? (envKey.startsWith('rzp_live_') ? 'live' : (envKey.startsWith('rzp_test_') ? 'test' : 'custom')) : 'not_configured');
+
+  return {
+    keyId: envKey || null,
+    keySecret: envSecret || null,
+    webhookSecret: config.RAZORPAY_WEBHOOK_SECRET || null,
+    mode: envMode,
+    source: 'environment',
+    isConfigured: isEnvConfigured
+  };
+}
+
 // POST /api/payment/create-order - Create payment order (No login required)
 router.post('/create-order', async (req, res) => {
   const { product_type, product_id, items, coupon_code, couponCode, customer_name, customer_email, customer_phone, name, email, phone, customer } = req.body;
@@ -253,16 +313,12 @@ router.post('/create-order', async (req, res) => {
     const itemsJson = JSON.stringify(resolvedItems);
 
     let rzp_order_id = `order_test_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-    const isRazorpayConfigured = config.RAZORPAY_KEY_ID && 
-                                 config.RAZORPAY_KEY_SECRET && 
-                                 !config.RAZORPAY_KEY_ID.includes('xxxx') && 
-                                 !config.RAZORPAY_KEY_ID.includes('placeholder') && 
-                                 !config.RAZORPAY_KEY_SECRET.includes('your_razorpay');
+    const rzpConfig = getEffectiveRazorpayConfig(db);
 
-    if (isRazorpayConfigured) {
+    if (rzpConfig.isConfigured) {
       try {
         const Razorpay = require('razorpay');
-        const rzp = new Razorpay({ key_id: config.RAZORPAY_KEY_ID, key_secret: config.RAZORPAY_KEY_SECRET });
+        const rzp = new Razorpay({ key_id: rzpConfig.keyId, key_secret: rzpConfig.keySecret });
         const rzpOrder = await rzp.orders.create({
           amount: finalAmount,
           currency: 'INR',
@@ -305,7 +361,7 @@ router.post('/create-order', async (req, res) => {
       customer_name: cleanName,
       customer_email: cleanEmail,
       customer_phone: cleanPhone,
-      razorpay_key_id: config.RAZORPAY_KEY_ID || null,
+      razorpay_key_id: rzpConfig.keyId || null,
       razorpay_order_id: rzp_order_id
     });
   } catch (err) {
@@ -316,31 +372,20 @@ router.post('/create-order', async (req, res) => {
 
 // GET /api/payment/config-status - Safe payment gateway diagnostics (No secrets exposed)
 router.get('/config-status', (req, res) => {
-  const keyId = config.RAZORPAY_KEY_ID || '';
-  const hasSecret = Boolean(config.RAZORPAY_KEY_SECRET && !config.RAZORPAY_KEY_SECRET.includes('your_razorpay') && !config.RAZORPAY_KEY_SECRET.includes('placeholder'));
-  let mode = 'not_configured';
-  if (keyId.startsWith('rzp_live_')) {
-    mode = 'live';
-  } else if (keyId.startsWith('rzp_test_')) {
-    mode = 'test';
-  } else if (keyId) {
-    mode = 'custom';
-  }
-
-  const isConfigured = Boolean(
-    keyId && 
-    hasSecret && 
-    !keyId.includes('xxxx') && 
-    !keyId.includes('placeholder')
-  );
+  const db = getDb();
+  const rzpConfig = getEffectiveRazorpayConfig(db);
+  const detectedEnvVars = Object.keys(process.env).filter(k => (k.includes('RAZORPAY') || k.includes('RZP')) && !k.includes('NPM_'));
 
   res.json({
-    mode,
-    key_prefix: keyId ? keyId.substring(0, 8) + '...' : null,
-    is_live_mode: mode === 'live',
-    is_test_mode: mode === 'test',
-    is_configured: isConfigured,
-    has_matching_secret: hasSecret,
+    mode: rzpConfig.mode,
+    key_prefix: rzpConfig.keyId ? rzpConfig.keyId.substring(0, 8) + '...' : null,
+    key_length: rzpConfig.keyId ? rzpConfig.keyId.length : 0,
+    is_live_mode: rzpConfig.mode === 'live',
+    is_test_mode: rzpConfig.mode === 'test',
+    is_configured: rzpConfig.isConfigured,
+    has_matching_secret: Boolean(rzpConfig.keySecret),
+    source: rzpConfig.source,
+    detected_env_vars: detectedEnvVars,
     environment: config.NODE_ENV
   });
 });
@@ -364,18 +409,14 @@ router.post('/verify', (req, res) => {
     return res.status(404).json({ success: false, error: 'Order record not found' });
   }
 
-  const isRazorpayConfigured = config.RAZORPAY_KEY_ID && 
-                               config.RAZORPAY_KEY_SECRET && 
-                               !config.RAZORPAY_KEY_ID.includes('xxxx') && 
-                               !config.RAZORPAY_KEY_ID.includes('placeholder') && 
-                               !config.RAZORPAY_KEY_SECRET.includes('your_razorpay');
+  const rzpConfig = getEffectiveRazorpayConfig(db);
 
   // Cryptographic signature check when real secret is configured
-  if (isRazorpayConfigured) {
+  if (rzpConfig.isConfigured) {
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({ success: false, error: 'Missing payment signature verification parameters' });
     }
-    const hmac = crypto.createHmac('sha256', config.RAZORPAY_KEY_SECRET);
+    const hmac = crypto.createHmac('sha256', rzpConfig.keySecret);
     hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
     const expectedSignature = hmac.digest('hex');
     if (expectedSignature !== razorpay_signature) {

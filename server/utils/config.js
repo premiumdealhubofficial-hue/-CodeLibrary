@@ -5,6 +5,63 @@ function sanitizeEnv(val) {
   return val.trim().replace(/^["']|["']$/g, '').trim();
 }
 
+function resolveRazorpayCredentials() {
+  const env = process.env;
+  const isProd = (sanitizeEnv(env.NODE_ENV) || 'development') === 'production';
+  const explicitMode = sanitizeEnv(env.RAZORPAY_MODE || env.PAYMENT_MODE || '').toLowerCase();
+
+  // Potential Live credentials
+  const liveKeyId = sanitizeEnv(env.RAZORPAY_LIVE_KEY_ID || env.RZP_LIVE_KEY_ID || (env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_ID.startsWith('rzp_live_') ? env.RAZORPAY_KEY_ID : null));
+  const liveKeySecret = sanitizeEnv(env.RAZORPAY_LIVE_KEY_SECRET || env.RAZORPAY_LIVE_SECRET || env.RZP_LIVE_KEY_SECRET || (liveKeyId && env.RAZORPAY_KEY_SECRET ? env.RAZORPAY_KEY_SECRET : null));
+
+  // Potential Test credentials
+  const testKeyId = sanitizeEnv(env.RAZORPAY_TEST_KEY_ID || env.RZP_TEST_KEY_ID || (env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_ID.startsWith('rzp_test_') ? env.RAZORPAY_KEY_ID : null));
+  const testKeySecret = sanitizeEnv(env.RAZORPAY_TEST_KEY_SECRET || env.RAZORPAY_TEST_SECRET || env.RZP_TEST_KEY_SECRET || (testKeyId && env.RAZORPAY_KEY_SECRET ? env.RAZORPAY_KEY_SECRET : null));
+
+  // Generic / Default
+  const genericKeyId = sanitizeEnv(env.RAZORPAY_KEY_ID || env.RAZORPAY_KEY || env.RZP_KEY_ID);
+  const genericKeySecret = sanitizeEnv(env.RAZORPAY_KEY_SECRET || env.RAZORPAY_SECRET || env.RZP_KEY_SECRET);
+
+  let keyId = null;
+  let keySecret = null;
+  let mode = 'none';
+
+  if (liveKeyId && liveKeySecret && (explicitMode === 'live' || explicitMode !== 'test')) {
+    keyId = liveKeyId;
+    keySecret = liveKeySecret;
+    mode = 'live';
+  } else if (explicitMode === 'test' && testKeyId && testKeySecret) {
+    keyId = testKeyId;
+    keySecret = testKeySecret;
+    mode = 'test';
+  } else if (genericKeyId && genericKeySecret) {
+    keyId = genericKeyId;
+    keySecret = genericKeySecret;
+    mode = genericKeyId.startsWith('rzp_live_') ? 'live' : (genericKeyId.startsWith('rzp_test_') ? 'test' : 'custom');
+  } else if (liveKeyId) {
+    keyId = liveKeyId;
+    keySecret = liveKeySecret || genericKeySecret;
+    mode = 'live';
+  } else if (testKeyId) {
+    keyId = testKeyId;
+    keySecret = testKeySecret || genericKeySecret;
+    mode = 'test';
+  } else if (genericKeyId) {
+    keyId = genericKeyId;
+    keySecret = genericKeySecret;
+    mode = genericKeyId.startsWith('rzp_live_') ? 'live' : (genericKeyId.startsWith('rzp_test_') ? 'test' : 'custom');
+  }
+
+  return {
+    keyId: keyId || null,
+    keySecret: keySecret || null,
+    mode,
+    webhookSecret: sanitizeEnv(env.RAZORPAY_WEBHOOK_SECRET || env.RZP_WEBHOOK_SECRET) || null
+  };
+}
+
+const rzpCreds = resolveRazorpayCredentials();
+
 module.exports = {
   PORT: process.env.PORT || 3000,
   NODE_ENV: sanitizeEnv(process.env.NODE_ENV) || 'development',
@@ -12,9 +69,10 @@ module.exports = {
   BASE_URL: sanitizeEnv(process.env.BASE_URL) || 'http://localhost:3000',
   DB_PATH: sanitizeEnv(process.env.DB_PATH) || 'database.sqlite',
   JWT_SECRET: sanitizeEnv(process.env.JWT_SECRET) || 'your_super_secret_key_change_in_prod',
-  RAZORPAY_KEY_ID: sanitizeEnv(process.env.RAZORPAY_KEY_ID) || null,
-  RAZORPAY_KEY_SECRET: sanitizeEnv(process.env.RAZORPAY_KEY_SECRET) || null,
-  RAZORPAY_WEBHOOK_SECRET: sanitizeEnv(process.env.RAZORPAY_WEBHOOK_SECRET) || null,
+  RAZORPAY_KEY_ID: rzpCreds.keyId,
+  RAZORPAY_KEY_SECRET: rzpCreds.keySecret,
+  RAZORPAY_MODE: rzpCreds.mode,
+  RAZORPAY_WEBHOOK_SECRET: rzpCreds.webhookSecret,
   EBOOK_STORAGE_PATH: sanitizeEnv(process.env.EBOOK_STORAGE_PATH) || './ebooks',
   ADMIN_EMAIL: sanitizeEnv(process.env.ADMIN_EMAIL) || 'admin@codelibrary.in',
   ADMIN_PASSWORD: sanitizeEnv(process.env.ADMIN_PASSWORD) || 'Admin@CodeLib2024!',
