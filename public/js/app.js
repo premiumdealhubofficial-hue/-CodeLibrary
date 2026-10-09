@@ -1131,15 +1131,11 @@ async function executeCheckout() {
       });
       rzp.open();
     } else {
-      // Test mode / Simulated secure verification
-      setTimeout(async () => {
-        const dummyResponse = {
-          razorpay_order_id: orderData.razorpay_order_id,
-          razorpay_payment_id: `pay_test_${Date.now()}`,
-          razorpay_signature: 'test_signature_valid'
-        };
-        await verifyAndCompleteOrder(dummyResponse, orderData.order_id);
-      }, 800);
+      showToast('Payment gateway is currently unavailable. Please contact support.', 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = 'Proceed to Pay &rarr;';
+      }
     }
   } catch (err) {
     showToast(err.message || 'Payment initialization failed', 'error');

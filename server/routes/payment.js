@@ -305,13 +305,44 @@ router.post('/create-order', async (req, res) => {
       customer_name: cleanName,
       customer_email: cleanEmail,
       customer_phone: cleanPhone,
-      razorpay_key_id: config.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+      razorpay_key_id: config.RAZORPAY_KEY_ID || null,
       razorpay_order_id: rzp_order_id
     });
   } catch (err) {
     console.error('Create order error:', err);
     res.status(500).json({ error: 'Failed to create payment order' });
   }
+});
+
+// GET /api/payment/config-status - Safe payment gateway diagnostics (No secrets exposed)
+router.get('/config-status', (req, res) => {
+  const keyId = config.RAZORPAY_KEY_ID || '';
+  const hasSecret = Boolean(config.RAZORPAY_KEY_SECRET && !config.RAZORPAY_KEY_SECRET.includes('your_razorpay') && !config.RAZORPAY_KEY_SECRET.includes('placeholder'));
+  let mode = 'not_configured';
+  if (keyId.startsWith('rzp_live_')) {
+    mode = 'live';
+  } else if (keyId.startsWith('rzp_test_')) {
+    mode = 'test';
+  } else if (keyId) {
+    mode = 'custom';
+  }
+
+  const isConfigured = Boolean(
+    keyId && 
+    hasSecret && 
+    !keyId.includes('xxxx') && 
+    !keyId.includes('placeholder')
+  );
+
+  res.json({
+    mode,
+    key_prefix: keyId ? keyId.substring(0, 8) + '...' : null,
+    is_live_mode: mode === 'live',
+    is_test_mode: mode === 'test',
+    is_configured: isConfigured,
+    has_matching_secret: hasSecret,
+    environment: config.NODE_ENV
+  });
 });
 
 // POST /api/payment/verify - Verify payment and unlock download access (No login required)
