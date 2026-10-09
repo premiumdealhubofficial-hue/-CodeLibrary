@@ -1121,6 +1121,16 @@ header.scrolled {
 }
 
 /* Bundle Section */
+#bundle {
+  padding-top: 1.5rem;
+  padding-bottom: 2rem;
+}
+
+#why-choose {
+  padding-top: 2.5rem;
+  padding-bottom: 3.5rem;
+}
+
 .bundle-card {
   background: var(--bg-card);
   border-radius: 1.5rem;
