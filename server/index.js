@@ -53,8 +53,18 @@ app.use((req, res, next) => {
 
 app.use(cookieParser());
 
-// Static file serving from public/ directory
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// Static file serving from public/ directory with cache control
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  maxAge: '1d',
+  setHeaders: (res, filePath) => {
+    // Aggressive caching for images and static fonts in public/uploads/covers and assets
+    if (filePath.match(/\.(webp|png|jpe?g|svg|ico|gif|woff2?|ttf|eot)$/i)) {
+      res.setHeader('Cache-Control', 'public, max-age=2592000, immutable'); // 30 days
+    } else if (filePath.match(/\.(css|js)$/i)) {
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day
+    }
+  }
+}));
 
 // Mount API routes
 app.use('/api/auth', require('./routes/auth'));

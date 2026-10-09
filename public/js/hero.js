@@ -44,12 +44,16 @@ function initStandingBooksShowcase() {
       el.title = `Click to view ${book.title} (₹${(book.price / 100).toFixed(0)})`;
 
       const coverUrl = book.cover_image || book.cover;
+      const webpUrl = coverUrl ? coverUrl.replace(/\.(png|jpe?g)$/i, '.webp') : '';
       const grad = categoryGradients[book.slug] || { g: 'linear-gradient(135deg, #1e293b, #3b82f6)', icon: 'fa-book' };
 
       if (coverUrl) {
         el.innerHTML = `
           <div class="standing-book-cover">
-            <img src="${coverUrl}" alt="${book.title}" onerror="this.parentElement.innerHTML='<div class=\\'standing-book-fallback\\' style=\\'background: ${grad.g};\\'><i class=\\'fas ${grad.icon}\\'></i><div class=\\'fallback-title\\'>${book.title}</div></div>'">
+            <picture>
+              <source srcset="${webpUrl}" type="image/webp">
+              <img src="${coverUrl}" alt="${book.title}" width="100" height="150" fetchpriority="high" decoding="sync" onerror="this.closest('.standing-book-cover').innerHTML='<div class=\\'standing-book-fallback\\' style=\\'background: ${grad.g};\\'><i class=\\'fas ${grad.icon}\\'></i><div class=\\'fallback-title\\'>${book.title}</div></div>'">
+            </picture>
           </div>
         `;
       } else {

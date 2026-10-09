@@ -407,16 +407,26 @@ function renderBooks() {
     return;
   }
 
-  grid.innerHTML = filtered.map(book => {
+  grid.innerHTML = filtered.map((book, idx) => {
     const meta = categoryMeta[book.category] || { color1: '#1e293b', color2: '#3b82f6', icon: 'fa-book' };
     const priceDisplay = `₹${(book.price / 100).toFixed(0)}`;
     const ratingDisplay = (book.rating || 4.8).toFixed(1);
     const inCart = state.cart.some(item => item.id === book.id || item.slug === book.slug);
     const coverUrl = book.cover_image || book.cover;
+    const webpUrl = coverUrl ? coverUrl.replace(/\.(png|jpe?g)$/i, '.webp') : '';
+
+    // First 4 books are above the fold: high priority, sync decoding, eager load
+    const isAboveFold = idx < 4;
+    const imgAttrs = isAboveFold
+      ? 'fetchpriority="high" decoding="sync"'
+      : 'loading="lazy" decoding="async" fetchpriority="low"';
 
     const coverHtml = coverUrl ? `
       <div class="book-cover-wrap">
-        <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(book.title)}" class="book-cover-img" onerror="this.parentElement.innerHTML='<div class=\\'book-cover-placeholder\\' style=\\'background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});\\'><div class=\\'book-cover-icon\\'><i class=\\'fas ${meta.icon}\\'></i></div><div class=\\'book-cover-title\\'>${escapeHtml(book.title)}</div><div class=\\'book-cover-badge\\'>CodeLibrary</div></div>'">
+        <picture>
+          <source srcset="${escapeHtml(webpUrl)}" type="image/webp">
+          <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(book.title)}" class="book-cover-img" width="118" height="175" ${imgAttrs} onerror="this.closest('.book-cover-wrap').innerHTML='<div class=\\'book-cover-placeholder\\' style=\\'background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});\\'><div class=\\'book-cover-icon\\'><i class=\\'fas ${meta.icon}\\'></i></div><div class=\\'book-cover-title\\'>${escapeHtml(book.title)}</div><div class=\\'book-cover-badge\\'>CodeLibrary</div></div>'">
+        </picture>
       </div>
     ` : `
       <div class="book-cover-placeholder" style="background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});">
@@ -463,13 +473,18 @@ window.openBookDetail = async function(slugOrId) {
     const meta = categoryMeta[book.category] || { color1: '#1e293b', color2: '#3b82f6', icon: 'fa-book' };
     const priceDisplay = `₹${(book.price / 100).toFixed(0)}`;
     const ratingDisplay = (book.rating || 4.8).toFixed(1);
+    const inCart = state.cart.some(item => item.id === book.id || item.slug === book.slug);
     const learnList = Array.isArray(book.what_you_learn) ? book.what_you_learn : [];
     const topicsList = Array.isArray(book.topics) ? book.topics : [];
     const coverUrl = book.cover_image || book.cover;
+    const webpUrl = coverUrl ? coverUrl.replace(/\.(png|jpe?g)$/i, '.webp') : '';
 
     const detailCoverHtml = coverUrl ? `
       <div class="book-detail-cover-wrap">
-        <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(book.title)}" class="book-detail-cover-img" onerror="this.parentElement.innerHTML='<div class=\\'book-cover-placeholder large\\' style=\\'background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});\\'><div class=\\'book-cover-icon\\'><i class=\\'fas ${meta.icon}\\'></i></div><div class=\\'book-cover-title\\'>${escapeHtml(book.title)}</div><div class=\\'book-cover-badge\\'>Official Edition</div></div>'">
+        <picture>
+          <source srcset="${escapeHtml(webpUrl)}" type="image/webp">
+          <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(book.title)}" class="book-detail-cover-img" width="220" height="330" fetchpriority="high" decoding="sync" onerror="this.closest('.book-detail-cover-wrap').innerHTML='<div class=\\'book-cover-placeholder large\\' style=\\'background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});\\'><div class=\\'book-cover-icon\\'><i class=\\'fas ${meta.icon}\\'></i></div><div class=\\'book-cover-title\\'>${escapeHtml(book.title)}</div><div class=\\'book-cover-badge\\'>Official Edition</div></div>'">
+        </picture>
       </div>
     ` : `
       <div class="book-cover-placeholder large" style="background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});">
@@ -813,6 +828,7 @@ function renderCart() {
     const category = item.category || book?.category || '';
     const meta = categoryMeta[category] || { color1: '#1e293b', color2: '#3b82f6', icon: 'fa-book' };
     const coverUrl = item.cover_image || book?.cover_image || book?.cover || '';
+    const webpUrl = coverUrl ? coverUrl.replace(/\.(png|jpe?g)$/i, '.webp') : '';
 
     let coverHtml = '';
     if (item.type === 'bundle') {
@@ -827,7 +843,10 @@ function renderCart() {
     } else if (coverUrl) {
       coverHtml = `
         <div class="cart-item-cover-wrap">
-          <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item.title)}" class="cart-item-img" onerror="this.parentElement.innerHTML='<div class=\\'cart-item-placeholder\\' style=\\'background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});\\'><i class=\\'fas ${meta.icon}\\'></i></div>'">
+          <picture>
+            <source srcset="${escapeHtml(webpUrl)}" type="image/webp">
+            <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(item.title)}" class="cart-item-img" width="70" height="105" loading="lazy" decoding="async" onerror="this.closest('.cart-item-cover-wrap').innerHTML='<div class=\\'cart-item-placeholder\\' style=\\'background: linear-gradient(135deg, ${meta.color1}, ${meta.color2});\\'><i class=\\'fas ${meta.icon}\\'></i></div>'">
+          </picture>
         </div>
       `;
     } else {
