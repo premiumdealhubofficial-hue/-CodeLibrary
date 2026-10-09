@@ -317,12 +317,17 @@ header.scrolled {
    ======================================================== */
 #hero {
   position: relative;
-  min-height: 86vh;
+  min-height: auto;
   display: flex;
   align-items: center;
-  padding: 6.5rem 0 3.5rem;
+  padding: 5.5rem 0 2rem;
   overflow: hidden;
   background: radial-gradient(circle at 75% 30%, #172554 0%, #0b1120 55%, #070a12 100%);
+}
+
+#ebooks {
+  padding-top: 1rem;
+  padding-bottom: 3.5rem;
 }
 
 [data-theme='light'] #hero {
@@ -729,10 +734,13 @@ header.scrolled {
 
 /* Responsive Hero */
 @media (max-width: 992px) {
+  #hero {
+    padding: 5rem 0 1.5rem;
+  }
   .hero-layout {
     grid-template-columns: 1fr;
     text-align: center;
-    gap: 3rem;
+    gap: 2rem;
   }
   .hero-content {
     text-align: center;
@@ -740,6 +748,7 @@ header.scrolled {
   }
   .hero-cta {
     justify-content: center;
+    margin-bottom: 1.25rem;
   }
   .hero-features-bar {
     margin: 0 auto;
@@ -750,23 +759,35 @@ header.scrolled {
 }
 
 @media (max-width: 600px) {
+  #hero {
+    padding: 4.25rem 0 1rem;
+  }
   .hero-title {
-    font-size: 2.5rem;
+    font-size: 2.3rem;
+  }
+  .hero-description {
+    font-size: 0.95rem;
+    margin-bottom: 1.25rem;
+  }
+  .hero-cta {
+    margin-bottom: 1.25rem;
   }
   .hero-features-bar {
     grid-template-columns: 1fr;
+    padding: 0.75rem 1rem;
+    gap: 0.6rem;
   }
   .showcase-card-wrapper {
-    height: 330px;
-    max-width: 360px;
+    height: 300px;
+    max-width: 340px;
   }
   .showcase-laptop {
-    width: 280px;
-    height: 180px;
+    width: 260px;
+    height: 165px;
   }
   .standing-book-item {
-    width: 70px;
-    height: 105px;
+    width: 65px;
+    height: 95px;
   }
   .showcase-stacked-books {
     display: none;
@@ -780,10 +801,10 @@ header.scrolled {
 
 /* Controls (Search & Filters) */
 .catalog-controls {
-  margin-bottom: 2.5rem;
+  margin-bottom: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
   align-items: center;
 }
 
@@ -2768,13 +2789,19 @@ input[type=number] {
   .footer-bottom-flex { flex-direction: column; gap: 0.75rem; text-align: center; }
   .hero-title { font-size: 2.6rem; }
   .hero-description { font-size: 1.05rem; }
-  .section { padding: 4rem 0; }
+  .section { padding: 3rem 0; }
+  #ebooks { padding-top: 0.5rem; padding-bottom: 2.5rem; }
+  .catalog-controls { margin-bottom: 1.25rem; gap: 0.75rem; }
   .bundle-card { padding: 2rem 1.5rem; }
   .bundle-price { font-size: 2.5rem; }
 }
 
 @media (max-width: 480px) {
   .hero-title { font-size: 2.1rem; }
+  .section { padding: 2.25rem 0; }
+  #ebooks { padding-top: 0.25rem; padding-bottom: 2rem; }
+  .catalog-controls { margin-bottom: 1rem; gap: 0.65rem; }
+  .search-bar-inline input { padding: 0.7rem 2.25rem 0.7rem 2.25rem; font-size: 0.88rem; }
   .books-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 0.55rem;
