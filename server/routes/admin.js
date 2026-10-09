@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db/schema');
 const config = require('../utils/config');
 const { authenticateAdmin } = require('../middleware/auth');
-const { loginLimiter } = require('../middleware/rateLimiter');
+const { adminLoginLimiter } = require('../middleware/rateLimiter');
 const { createDatabaseBackup, listBackups, BACKUP_DIR } = require('../utils/backup');
 
 // Helper to save base64 cover image to public/uploads/covers/
@@ -55,7 +55,7 @@ function logAudit(db, admin_id, action, entity, entity_id, details, ip) {
 }
 
 // Admin Login
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', adminLoginLimiter, async (req, res) => {
   const { username, email, password, totp_code } = req.body;
   const loginIdentifier = (email || username || '').trim();
   
@@ -65,10 +65,26 @@ router.post('/login', loginLimiter, async (req, res) => {
 
   const db = getDb();
   try {
-    const admin = db.prepare('SELECT * FROM admins WHERE email = ? OR username = ?').get(loginIdentifier, loginIdentifier);
+    let admin = db.prepare('SELECT * FROM admins WHERE email = ? OR username = ?').get(loginIdentifier, loginIdentifier);
+    
+    // If admin not found by identifier, check if identifier matches config
+    if (!admin && (loginIdentifier === config.ADMIN_EMAIL || loginIdentifier === (config.ADMIN_USERNAME || 'admin'))) {
+      const { syncAdminAccount } = require('../db/schema');
+      syncAdminAccount(db);
+      admin = db.prepare('SELECT * FROM admins WHERE email = ? OR username = ?').get(loginIdentifier, loginIdentifier);
+    }
+
     if (!admin) return res.status(401).json({ error: 'Invalid admin credentials' });
 
-    const match = await bcrypt.compare(password, admin.password_hash);
+    let match = await bcrypt.compare(password, admin.password_hash);
+    
+    // Direct match check against configured environment variable if hash was generated before env update
+    if (!match && config.ADMIN_PASSWORD && password === config.ADMIN_PASSWORD && (loginIdentifier === config.ADMIN_EMAIL || loginIdentifier === config.ADMIN_USERNAME)) {
+      match = true;
+      const newHash = bcrypt.hashSync(password, 10);
+      db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(newHash, admin.id);
+    }
+
     if (!match) return res.status(401).json({ error: 'Invalid admin credentials' });
 
     if (admin.totp_enabled) {
@@ -652,6 +668,13 @@ router.put('/bundles/:id', (req, res) => {
   
   const existing = db.prepare('SELECT * FROM bundles WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Bundle not found' });
+
+  if (price !== undefined) {
+    const parsed = parseInt(price, 10);
+    if (isNaN(parsed) || parsed < 0) {
+      return res.status(400).json({ error: 'Invalid bundle price. Price must be a non-negative integer.' });
+    }
+  }
 
   const finalPrice = price !== undefined ? parseInt(price, 10) : existing.price;
   let finalActive = existing.is_active;

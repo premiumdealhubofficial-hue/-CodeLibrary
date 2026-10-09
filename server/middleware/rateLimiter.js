@@ -12,6 +12,14 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts, please try again later.' }
 });
 
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many admin login attempts from this IP. Please try again after 15 minutes.' }
+});
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 3000,
@@ -24,4 +32,4 @@ const contactLimiter = rateLimit({
   message: { error: 'Too many contact submissions, please try again later.' }
 });
 
-module.exports = { generalLimiter, loginLimiter, apiLimiter, contactLimiter };
+module.exports = { generalLimiter, loginLimiter, adminLoginLimiter, apiLimiter, contactLimiter };

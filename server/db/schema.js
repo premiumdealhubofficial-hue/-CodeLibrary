@@ -254,6 +254,9 @@ function getDb() {
     // Columns may already exist
   }
 
+  // Safe synchronization of admin account credentials from Render environment variables
+  syncAdminAccount(dbInstance);
+
   // Safe automated initialization of catalog on fresh deployment (Render/Docker/VPS)
   try {
     const publishedCount = dbInstance.prepare("SELECT COUNT(*) as count FROM books WHERE is_published = 1").get().count;
@@ -268,5 +271,38 @@ function getDb() {
   return dbInstance;
 }
 
-module.exports = { getDb, getDbPath };
+function syncAdminAccount(db) {
+  try {
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+
+    const adminEmail = config.ADMIN_EMAIL || 'admin@codelibrary.in';
+    const adminUsername = config.ADMIN_USERNAME || 'admin';
+    const adminPassword = config.ADMIN_PASSWORD;
+
+    if (!adminPassword) return;
+
+    const existingAdmin = db.prepare('SELECT id, email, username, password_hash, totp_enabled FROM admins WHERE email = ? OR username = ?').get(adminEmail, adminUsername);
+
+    if (!existingAdmin) {
+      const hashedPassword = bcrypt.hashSync(adminPassword, 10);
+      db.prepare('INSERT INTO admins (id, email, username, password_hash) VALUES (?, ?, ?, ?)').run(
+        uuidv4(), adminEmail, adminUsername, hashedPassword
+      );
+    } else if (!existingAdmin.totp_enabled) {
+      // Synchronize password hash with environment variable if changed and 2FA is not active
+      const isMatch = bcrypt.compareSync(adminPassword, existingAdmin.password_hash);
+      if (!isMatch) {
+        const newHash = bcrypt.hashSync(adminPassword, 10);
+        db.prepare('UPDATE admins SET email = ?, username = ?, password_hash = ? WHERE id = ?').run(
+          adminEmail, adminUsername, newHash, existingAdmin.id
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Admin synchronization notice:', err.message);
+  }
+}
+
+module.exports = { getDb, getDbPath, syncAdminAccount };
 
