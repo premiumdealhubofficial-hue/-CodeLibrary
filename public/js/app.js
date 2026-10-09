@@ -280,37 +280,40 @@ async function fetchBundle() {
 }
 
 function renderBundle() {
-  if (!state.bundle || state.bundle.price == null) return;
-  const bundlePriceFormatted = formatCurrency(state.bundle.price);
+  if (state.bundle && state.bundle.price != null) {
+    const bundlePriceFormatted = formatCurrency(state.bundle.price);
 
-  // 1. Home page bundle / collection amount
-  const heroBundlePriceEl = document.getElementById('hero-bundle-price');
-  if (heroBundlePriceEl) {
-    heroBundlePriceEl.textContent = bundlePriceFormatted;
-  }
-
-  // 2. Bundle page top price & Card Elements
-  const bundleCard = document.querySelector('.bundle-card');
-  if (bundleCard) {
-    const currentPriceEl = bundleCard.querySelector('.current-price');
-    if (currentPriceEl) {
-      currentPriceEl.textContent = bundlePriceFormatted;
+    // 1. Home page bundle / collection amount
+    const heroBundlePriceEl = document.getElementById('hero-bundle-price');
+    if (heroBundlePriceEl) {
+      heroBundlePriceEl.textContent = bundlePriceFormatted;
     }
 
-    const oldPriceEl = bundleCard.querySelector('.old-price');
-    const saveBadgeEl = bundleCard.querySelector('.save-badge');
-    if (oldPriceEl && Array.isArray(state.books) && state.books.length > 0) {
-      const totalOriginal = state.books.reduce((acc, b) => acc + (b.price || 0), 0);
-      if (totalOriginal > 0) {
-        oldPriceEl.textContent = formatCurrency(totalOriginal);
-        if (saveBadgeEl && state.bundle.price != null) {
-          const discountPercent = Math.max(0, Math.round(((totalOriginal - state.bundle.price) / totalOriginal) * 100));
-          saveBadgeEl.textContent = `Save ${discountPercent}%`;
-        }
-      }
+    // 2. Main Bundle section current price (ID and class)
+    const currentPriceEls = document.querySelectorAll('.bundle-card .current-price, #bundle-current-price');
+    currentPriceEls.forEach(el => {
+      el.textContent = bundlePriceFormatted;
+    });
+
+    // Calculate total original price of individual books and dynamic savings
+    const totalOriginal = (Array.isArray(state.books) && state.books.length > 0)
+      ? state.books.reduce((acc, b) => acc + (b.price || 0), 0)
+      : 199900; // 19 books total original value (₹1,999)
+
+    const oldPriceEls = document.querySelectorAll('.bundle-card .old-price, #bundle-old-price');
+    oldPriceEls.forEach(el => {
+      el.textContent = formatCurrency(totalOriginal);
+    });
+
+    if (totalOriginal > state.bundle.price) {
+      const discountPercent = Math.max(0, Math.round(((totalOriginal - state.bundle.price) / totalOriginal) * 100));
+      const saveBadgeEls = document.querySelectorAll('.bundle-card .save-badge, #bundle-save-badge');
+      saveBadgeEls.forEach(el => {
+        el.textContent = `Save ${discountPercent}%`;
+      });
     }
 
-    const bundleTitleEl = bundleCard.querySelector('.bundle-title');
+    const bundleTitleEl = document.querySelector('.bundle-card .bundle-title');
     if (bundleTitleEl && state.bundle.title) {
       bundleTitleEl.textContent = state.bundle.title;
     }
@@ -320,10 +323,10 @@ function renderBundle() {
     if (bundleCtaPriceEl) {
       bundleCtaPriceEl.textContent = `• ${bundlePriceFormatted}`;
     }
-
-    // 4. Render the 10-12 real eBook 3D layered cover stack
-    renderBundleStack();
   }
+
+  // 4. Render the 10-12 real eBook 3D layered cover stack
+  renderBundleStack();
 
   // Sync any active cart items to current bundle price (4. Cart & 5. Checkout)
   syncCartWithLivePrices();
