@@ -517,14 +517,14 @@ function renderBooks() {
           </div>
           <div class="book-actions">
             <button class="btn btn-secondary btn-sm" data-action="view-details" data-slug="${escapeHtml(book.slug)}" data-id="${escapeHtml(book.id)}">
-              <i class="fas fa-info-circle"></i> View Details
+              <i class="fas fa-info-circle"></i> Details
             </button>
             <button class="btn btn-primary btn-sm ${inCart ? 'in-cart' : ''}" data-action="add-to-cart" data-id="${escapeHtml(book.id)}" title="${inCart ? 'In cart (click to remove)' : 'Add to cart'}">
               <i class="fas ${inCart ? 'fa-check' : 'fa-cart-plus'}"></i> ${inCart ? '✓ Added to Cart' : 'Add to Cart'}
             </button>
           </div>
           <button class="btn btn-outline btn-block btn-buy-direct" data-action="buy-now" data-id="${escapeHtml(book.id)}">
-            Get This eBook &rarr;
+            Buy Now &rarr;
           </button>
         </div>
       </div>
