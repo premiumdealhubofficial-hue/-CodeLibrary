@@ -1154,15 +1154,15 @@ header.scrolled {
   align-items: center;
   justify-content: center;
   position: relative;
-  min-height: 230px;
+  min-height: 250px;
   overflow: visible;
-  perspective: 1000px;
+  perspective: 1200px;
 }
 
 .bundle-stack-wrapper {
   position: relative;
-  width: 380px;
-  height: 190px;
+  width: 410px;
+  height: 235px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -1175,21 +1175,34 @@ header.scrolled {
   top: var(--book-y, 0px);
   transform: rotate(var(--book-rot, 0deg));
   transform-origin: center bottom;
-  width: 105px;
-  height: 155px;
   border-radius: 6px;
-  box-shadow: -4px 6px 16px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.25);
+  box-shadow: -5px 8px 20px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(255, 255, 255, 0.12);
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, z-index 0.25s ease;
   cursor: pointer;
-  background: var(--bg-secondary);
+  background: #0f172a;
   overflow: hidden;
 }
 
+.bundle-stack-book.back-layer {
+  width: 95px;
+  height: 140px;
+  filter: brightness(0.85);
+  opacity: 0.95;
+}
+
+.bundle-stack-book.front-layer {
+  width: 105px;
+  height: 155px;
+  filter: brightness(1);
+  box-shadow: -6px 12px 24px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
 .bundle-stack-book:hover {
-  transform: rotate(0deg) translateY(-12px) scale(1.08);
+  transform: rotate(0deg) translateY(-14px) scale(1.12);
   z-index: 60 !important;
-  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.6), 0 0 15px rgba(59, 130, 246, 0.4);
+  filter: brightness(1.05);
+  box-shadow: 0 20px 35px rgba(0, 0, 0, 0.7), 0 0 20px rgba(59, 130, 246, 0.45);
   border-color: var(--accent-cyan);
 }
 

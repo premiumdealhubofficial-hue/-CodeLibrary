@@ -334,39 +334,56 @@ function renderBundleStack() {
   if (!container) return;
 
   if (!Array.isArray(state.books) || state.books.length === 0) {
-    container.innerHTML = `
-      <div class="bundle-stack-fallback">
-        <i class="fas fa-layer-group" style="font-size: 2rem;"></i>
-        <span>All 19 eBooks Included</span>
-      </div>
-    `;
-    return;
+    return; // Preserve existing pre-rendered HTML
   }
 
-  // Select 10 to 12 distinct real books with valid covers
+  // Filter books with valid covers
   const booksWithCovers = state.books.filter(b => b.cover_image || b.cover);
-  const stackBooks = booksWithCovers.slice(0, 11);
+  if (booksWithCovers.length === 0) return;
 
-  if (stackBooks.length === 0) return;
+  // Split into 5 back layer books and 6 front layer books
+  const backBooks = booksWithCovers.slice(5, 10);
+  const frontBooks = booksWithCovers.slice(0, 6);
 
-  const total = stackBooks.length;
-  container.innerHTML = stackBooks.map((book, idx) => {
+  let html = '';
+
+  // Back row (5 books)
+  backBooks.forEach((book, idx) => {
     const coverUrl = book.cover_image || book.cover;
     const webpUrl = coverUrl ? coverUrl.replace(/\.(png|jpe?g)$/i, '.webp') : '';
-    const relIdx = idx - Math.floor(total / 2);
-    const rot = (relIdx * 3.2).toFixed(1);
-    const xOffset = (idx * 24).toFixed(0);
-    const yOffset = (Math.abs(relIdx) * 2.5).toFixed(0);
+    const x = 10 + idx * 65;
+    const y = idx === 0 || idx === 4 ? 5 : 0;
+    const rot = -10 + idx * 5;
+    html += `
+      <div class="bundle-stack-book back-layer" style="--book-x: ${x}px; --book-y: ${y}px; --book-rot: ${rot}deg; z-index: ${idx + 1};" title="${escapeHtml(book.title)}" onclick="if(typeof openBookDetail==='function') openBookDetail('${escapeHtml(book.slug || book.id)}')">
+        <picture>
+          <source srcset="${escapeHtml(webpUrl)}" type="image/webp">
+          <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(book.title)}" class="bundle-stack-img" width="95" height="140" loading="lazy" decoding="async">
+        </picture>
+      </div>
+    `;
+  });
 
-    return `
-      <div class="bundle-stack-book" style="--book-idx: ${idx}; --book-rot: ${rot}deg; --book-x: ${xOffset}px; --book-y: ${yOffset}px; z-index: ${idx + 1};" title="${escapeHtml(book.title)}">
+  // Front row (6 books)
+  frontBooks.forEach((book, idx) => {
+    const coverUrl = book.cover_image || book.cover;
+    const webpUrl = coverUrl ? coverUrl.replace(/\.(png|jpe?g)$/i, '.webp') : '';
+    const x = 25 + idx * 55;
+    const y = 60 + Math.abs(idx - 2.5) * 3;
+    const rot = -8 + idx * 3.2;
+    html += `
+      <div class="bundle-stack-book front-layer" style="--book-x: ${x}px; --book-y: ${y.toFixed(0)}px; --book-rot: ${rot.toFixed(1)}deg; z-index: ${idx + 10};" title="${escapeHtml(book.title)}" onclick="if(typeof openBookDetail==='function') openBookDetail('${escapeHtml(book.slug || book.id)}')">
         <picture>
           <source srcset="${escapeHtml(webpUrl)}" type="image/webp">
           <img src="${escapeHtml(coverUrl)}" alt="${escapeHtml(book.title)}" class="bundle-stack-img" width="105" height="155" loading="lazy" decoding="async">
         </picture>
       </div>
     `;
-  }).join('');
+  });
+
+  if (html) {
+    container.innerHTML = html;
+  }
 }
 
 function syncCartWithLivePrices() {
