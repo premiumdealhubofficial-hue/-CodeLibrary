@@ -289,8 +289,8 @@ function syncAdminAccount(db) {
       db.prepare('INSERT INTO admins (id, email, username, password_hash) VALUES (?, ?, ?, ?)').run(
         uuidv4(), adminEmail, adminUsername, hashedPassword
       );
-    } else if (!existingAdmin.totp_enabled) {
-      // Synchronize password hash with environment variable if changed and 2FA is not active
+    } else {
+      // Synchronize password hash with environment variable if changed, preserving 2FA configuration
       const isMatch = bcrypt.compareSync(adminPassword, existingAdmin.password_hash);
       if (!isMatch) {
         const newHash = bcrypt.hashSync(adminPassword, 10);
