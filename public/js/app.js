@@ -263,14 +263,20 @@ async function fetchBundle() {
   try {
     let data;
     try {
-      data = await api('/api/bundles/complete-programming-bundle');
+      const res = await fetch('/api/bundles/complete-programming-bundle?t=' + Date.now(), {
+        headers: { 'Accept': 'application/json' },
+        cache: 'no-store'
+      });
+      if (res.ok) {
+        data = await res.json();
+      }
     } catch (e) {
-      const all = await api('/api/bundles');
+      const all = await api('/api/bundles?t=' + Date.now());
       if (Array.isArray(all) && all.length > 0) {
         data = all.find(b => b.slug === 'complete-programming-bundle') || all[0];
       }
     }
-    if (data) {
+    if (data && data.price != null) {
       state.bundle = data;
       renderBundle();
     }

@@ -81,6 +81,7 @@ app.use('/api/admin', require('./routes/admin'));
 const { getDb: getBundleDb } = require('./db/schema');
 
 app.get('/api/bundles', apiLimiter, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   const db = getDb();
   try {
     const bundles = db.prepare('SELECT id, title, slug, description, price FROM bundles WHERE is_active = 1').all();
@@ -91,6 +92,7 @@ app.get('/api/bundles', apiLimiter, (req, res) => {
 });
 
 app.get('/api/bundles/:slug', apiLimiter, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   const db = getDb();
   try {
     const bundle = db.prepare('SELECT * FROM bundles WHERE (slug = ? OR id = ?) AND is_active = 1').get(req.params.slug, req.params.slug);

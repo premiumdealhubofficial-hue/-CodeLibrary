@@ -261,8 +261,6 @@ function getDb() {
       const { seedDatabase } = require('./seed');
       seedDatabase(dbInstance);
     }
-    // Update bundle price to 29900 default if previously stored at legacy price
-    dbInstance.prepare("UPDATE bundles SET price = 29900 WHERE price != 29900").run();
   } catch (err) {
     console.error('Database auto-initialization notice:', err.message);
   }
