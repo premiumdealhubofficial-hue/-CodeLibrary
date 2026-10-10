@@ -20,6 +20,8 @@ function getDb() {
     fs.mkdirSync(dir, { recursive: true });
   }
 
+  const dbFileExisted = fs.existsSync(dbPath) && fs.statSync(dbPath).size > 1024;
+
   dbInstance = new DatabaseSync(dbPath);
   
   // Production durability and concurrency pragmas
@@ -27,6 +29,16 @@ function getDb() {
   dbInstance.exec('PRAGMA journal_mode = WAL;');
   dbInstance.exec('PRAGMA synchronous = NORMAL;');
   dbInstance.exec('PRAGMA busy_timeout = 5000;');
+
+  // Automatic online snapshot backup for existing production databases
+  if (dbFileExisted) {
+    try {
+      const { createDatabaseBackup } = require('../utils/backup');
+      createDatabaseBackup({ tag: 'startup_snapshot', keepCount: 20 });
+    } catch (e) {
+      // Safe non-blocking notice
+    }
+  }
 
   dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS users (

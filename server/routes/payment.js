@@ -455,23 +455,27 @@ router.post('/verify', (req, res) => {
     }
   }
 
-  const paymentId = razorpay_payment_id || `pay_${Date.now()}`;
-  const signature = razorpay_signature || 'verified_server_test';
+  const isAlreadyPaid = (order.status === 'paid');
 
-  db.prepare(`
-    UPDATE orders 
-    SET status = 'paid', razorpay_payment_id = ?, razorpay_signature = ?, updated_at = CURRENT_TIMESTAMP 
-    WHERE id = ?
-  `).run(paymentId, signature, order.id);
+  if (!isAlreadyPaid) {
+    const paymentId = razorpay_payment_id || `pay_${Date.now()}`;
+    const signature = razorpay_signature || 'verified_server_test';
 
-  // Record coupon usage if applied
-  if (order.coupon_code) {
-    const coupon = db.prepare('SELECT id FROM coupons WHERE code = ?').get(order.coupon_code);
-    if (coupon) {
-      db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?').run(coupon.id);
-      db.prepare('INSERT OR IGNORE INTO coupon_usages (id, coupon_id, customer_id, order_id, discount_amount) VALUES (?, ?, ?, ?, ?)').run(
-        uuidv4(), coupon.id, order.customer_id || 'guest', order.id, order.discount_amount || 0
-      );
+    db.prepare(`
+      UPDATE orders 
+      SET status = 'paid', razorpay_payment_id = ?, razorpay_signature = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(paymentId, signature, order.id);
+
+    // Record coupon usage if applied
+    if (order.coupon_code) {
+      const coupon = db.prepare('SELECT id FROM coupons WHERE code = ?').get(order.coupon_code);
+      if (coupon) {
+        db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?').run(coupon.id);
+        db.prepare('INSERT OR IGNORE INTO coupon_usages (id, coupon_id, customer_id, order_id, discount_amount) VALUES (?, ?, ?, ?, ?)').run(
+          uuidv4(), coupon.id, order.customer_id || 'guest', order.id, order.discount_amount || 0
+        );
+      }
     }
   }
 

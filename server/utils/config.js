@@ -71,12 +71,58 @@ function sanitizeSmtpPass(val) {
   return clean;
 }
 
+const fs = require('fs');
+const path = require('path');
+
+function resolveDbPath() {
+  const explicit = sanitizeEnv(process.env.DB_PATH);
+  if (explicit) return explicit;
+
+  const dataDir = sanitizeEnv(process.env.DATA_DIR) || sanitizeEnv(process.env.PERSISTENT_DIR);
+  if (dataDir) {
+    return path.join(dataDir, 'database.sqlite');
+  }
+
+  // Check standard mounted disk directories on Linux/Render
+  const standardMounts = ['/var/data', '/data'];
+  for (const mount of standardMounts) {
+    try {
+      if (fs.existsSync(mount) && fs.statSync(mount).isDirectory()) {
+        return path.join(mount, 'database.sqlite');
+      }
+    } catch (e) {}
+  }
+
+  return 'database.sqlite';
+}
+
+function resolveBackupDir() {
+  const explicit = sanitizeEnv(process.env.BACKUP_DIR);
+  if (explicit) return explicit;
+
+  const dataDir = sanitizeEnv(process.env.DATA_DIR) || sanitizeEnv(process.env.PERSISTENT_DIR);
+  if (dataDir) {
+    return path.join(dataDir, 'backups');
+  }
+
+  const standardMounts = ['/var/data', '/data'];
+  for (const mount of standardMounts) {
+    try {
+      if (fs.existsSync(mount) && fs.statSync(mount).isDirectory()) {
+        return path.join(mount, 'backups');
+      }
+    } catch (e) {}
+  }
+
+  return 'backups';
+}
+
 module.exports = {
   PORT: process.env.PORT || 3000,
   NODE_ENV: sanitizeEnv(process.env.NODE_ENV) || 'development',
   TRUST_PROXY: process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production',
   BASE_URL: sanitizeEnv(process.env.BASE_URL) || 'http://localhost:3000',
-  DB_PATH: sanitizeEnv(process.env.DB_PATH) || 'database.sqlite',
+  DB_PATH: resolveDbPath(),
   JWT_SECRET: sanitizeEnv(process.env.JWT_SECRET) || 'your_super_secret_key_change_in_prod',
   RAZORPAY_KEY_ID: rzpCreds.keyId,
   RAZORPAY_KEY_SECRET: rzpCreds.keySecret,
@@ -97,7 +143,7 @@ module.exports = {
   RESEND_API_KEY: sanitizeEnv(process.env.RESEND_API_KEY) || '',
   BREVO_API_KEY: sanitizeEnv(process.env.BREVO_API_KEY) || '',
   SENDGRID_API_KEY: sanitizeEnv(process.env.SENDGRID_API_KEY) || '',
-  BACKUP_DIR: sanitizeEnv(process.env.BACKUP_DIR) || 'backups',
+  BACKUP_DIR: resolveBackupDir(),
   BACKUP_RETENTION_COUNT: parseInt(process.env.BACKUP_RETENTION_COUNT, 10) || 30
 };
 
