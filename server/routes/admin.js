@@ -11,9 +11,8 @@ const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db/schema');
 const config = require('../utils/config');
 const { authenticateAdmin } = require('../middleware/auth');
-const { adminLoginLimiter, otpSendLimiter, otpVerifyLimiter } = require('../middleware/rateLimiter');
+const { adminLoginLimiter } = require('../middleware/rateLimiter');
 const { createDatabaseBackup, listBackups, BACKUP_DIR } = require('../utils/backup');
-const { sendAdminLoginOtp, isSmtpConfigured, testSmtpConnection } = require('../utils/email');
 
 // Helper to save base64 cover image to public/uploads/covers/
 function saveBase64CoverImage(dataUrl, bookId) {
@@ -56,284 +55,161 @@ function logAudit(db, admin_id, action, entity, entity_id, details, ip) {
   }
 }
 
-// Admin Send Login OTP (Gmail SMTP)
-router.post('/send-otp', otpSendLimiter, async (req, res) => {
-  const { email } = req.body;
-  const loginEmail = String(email || '').trim().toLowerCase();
+// In-memory failed login tracking for brute-force protection
+const failedLoginAttempts = new Map(); // key -> { count: number, lockedUntil: number }
 
-  if (!loginEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail)) {
-    return res.status(400).json({ error: 'Please enter a valid admin email address' });
+function checkLoginLockout(key) {
+  const record = failedLoginAttempts.get(key);
+  if (!record) return { locked: false };
+  if (record.lockedUntil && Date.now() < record.lockedUntil) {
+    const remainingMins = Math.ceil((record.lockedUntil - Date.now()) / 60000);
+    return { locked: true, remainingMins };
   }
-
-  const db = getDb();
-  try {
-    const configuredAdminEmail = (config.ADMIN_EMAIL || 'admin@codelibrary.in').trim().toLowerCase();
-    
-    // Check if email matches configured admin email or an existing admin in DB
-    let admin = db.prepare('SELECT id, email, username FROM admins WHERE LOWER(email) = ?').get(loginEmail);
-    if (!admin && loginEmail === configuredAdminEmail) {
-      const { syncAdminAccount } = require('../db/schema');
-      syncAdminAccount(db);
-      admin = db.prepare('SELECT id, email, username FROM admins WHERE LOWER(email) = ?').get(loginEmail);
-    }
-
-    // Generic success response to avoid exposing registered email addresses to unauthenticated callers
-    const genericSuccess = {
-      success: true,
-      message: 'If the email address is registered as an admin, a 6-digit verification code has been sent.'
-    };
-
-    if (!admin || loginEmail !== configuredAdminEmail) {
-      // Return generic message without generating OTP
-      return res.json(genericSuccess);
-    }
-
-    // Verify email service configuration
-    if (!isSmtpConfigured() && process.env.NODE_ENV !== 'test') {
-      return res.status(503).json({
-        error: 'Email delivery service is not configured on the server. Please configure RESEND_API_KEY in Render Environment Variables.',
-        setup_required: true
-      });
-    }
-
-    // Generate cryptographically secure 6-digit OTP
-    const otp = crypto.randomInt(100000, 1000000).toString();
-    const otpHash = crypto.createHash('sha256').update(otp + config.JWT_SECRET).digest('hex');
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiration
-
-    // Invalidate any previous OTP for this email
-    db.prepare('DELETE FROM admin_email_otps WHERE LOWER(email) = ?').run(loginEmail);
-
-    // Store secure hashed OTP in database
-    db.prepare('INSERT INTO admin_email_otps (id, email, otp_hash, expires_at, attempts) VALUES (?, ?, ?, ?, 0)')
-      .run(uuidv4(), loginEmail, otpHash, expiresAt);
-
-    // Send email via Resend API / email service
-    await sendAdminLoginOtp(admin.email, otp);
-
-    logAudit(db, admin.id, 'OTP_SENT', 'ADMIN', admin.id, { email: admin.email }, req.ip);
-
-    return res.json({
-      success: true,
-      message: `A 6-digit verification code has been sent to your email. It will expire in 5 minutes.`
-    });
-  } catch (err) {
-    console.error('[Admin Send-OTP Error]:', err);
-    if (err.code === 'SMTP_NOT_CONFIGURED' || err.code === 'EMAIL_NOT_CONFIGURED') {
-      return res.status(503).json({
-        error: 'Email delivery service is not configured on the server. Please configure RESEND_API_KEY in Render Environment Variables.',
-        setup_required: true
-      });
-    }
-    const safeError = err.message || 'Failed to deliver OTP verification email. Please check server email configuration.';
-    return res.status(500).json({ error: safeError });
+  if (record.lockedUntil && Date.now() >= record.lockedUntil) {
+    failedLoginAttempts.delete(key);
+    return { locked: false };
   }
-});
+  return { locked: false };
+}
 
-// Safe SMTP Diagnostics Endpoint (Never exposes passwords)
-router.get('/smtp-status', async (req, res) => {
-  try {
-    const diagnostic = await testSmtpConnection();
-    res.json(diagnostic);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+function recordFailedLogin(key) {
+  const now = Date.now();
+  const record = failedLoginAttempts.get(key) || { count: 0, firstAttempt: now };
+  record.count += 1;
+  // If 5 failed attempts within 15 minutes, lock for 15 minutes
+  if (record.count >= 5) {
+    record.lockedUntil = now + 15 * 60 * 1000;
   }
-});
+  failedLoginAttempts.set(key, record);
+  return record;
+}
 
-// Admin Verify Login OTP & Issue Authenticated Session
-router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
-  const { email, otp, totp_code } = req.body;
-  const loginEmail = String(email || '').trim().toLowerCase();
-  const rawOtp = String(otp || '').trim();
+function clearFailedLogin(key) {
+  failedLoginAttempts.delete(key);
+}
 
-  if (!loginEmail || !rawOtp) {
-    return res.status(400).json({ error: 'Please enter both your admin email and 6-digit verification code' });
-  }
-
-  if (!/^\d{6}$/.test(rawOtp)) {
-    return res.status(400).json({ error: 'Verification code must be a 6-digit number' });
-  }
-
-  const db = getDb();
-  try {
-    const configuredAdminEmail = (config.ADMIN_EMAIL || 'admin@codelibrary.in').trim().toLowerCase();
-    let admin = db.prepare('SELECT * FROM admins WHERE LOWER(email) = ?').get(loginEmail);
-    if (!admin && loginEmail === configuredAdminEmail) {
-      const { syncAdminAccount } = require('../db/schema');
-      syncAdminAccount(db);
-      admin = db.prepare('SELECT * FROM admins WHERE LOWER(email) = ?').get(loginEmail);
-    }
-
-    if (!admin || loginEmail !== configuredAdminEmail) {
-      return res.status(401).json({ error: 'Invalid or expired verification code' });
-    }
-
-    // Retrieve active OTP record
-    const otpRecord = db.prepare('SELECT * FROM admin_email_otps WHERE LOWER(email) = ?').get(loginEmail);
-
-    if (!otpRecord) {
-      return res.status(401).json({ error: 'No verification code found or code has expired. Please request a new code.' });
-    }
-
-    // Check expiration
-    if (Date.now() > otpRecord.expires_at) {
-      db.prepare('DELETE FROM admin_email_otps WHERE id = ?').run(otpRecord.id);
-      return res.status(401).json({ error: 'Verification code has expired. Please request a new code.' });
-    }
-
-    // Check max attempts (5 attempts limit)
-    if (otpRecord.attempts >= 5) {
-      db.prepare('DELETE FROM admin_email_otps WHERE id = ?').run(otpRecord.id);
-      return res.status(401).json({ error: 'Too many incorrect attempts. For security, please request a new verification code.' });
-    }
-
-    // Increment attempts counter
-    db.prepare('UPDATE admin_email_otps SET attempts = attempts + 1 WHERE id = ?').run(otpRecord.id);
-
-    // Secure timing-safe hash comparison
-    const submittedHash = crypto.createHash('sha256').update(rawOtp + config.JWT_SECRET).digest('hex');
-    const hashA = Buffer.from(submittedHash, 'utf8');
-    const hashB = Buffer.from(otpRecord.otp_hash, 'utf8');
-    const isOtpValid = hashA.length === hashB.length && crypto.timingSafeEqual(hashA, hashB);
-
-    if (!isOtpValid) {
-      const remaining = Math.max(0, 4 - otpRecord.attempts);
-      return res.status(401).json({ 
-        error: remaining > 0 
-          ? `Invalid verification code. ${remaining} attempt(s) remaining.` 
-          : 'Invalid verification code. Please request a new code.' 
-      });
-    }
-
-    // Invalidate OTP immediately upon successful verification to prevent reuse
-    db.prepare('DELETE FROM admin_email_otps WHERE id = ?').run(otpRecord.id);
-
-    // If 2FA (TOTP) is enabled, verify the TOTP code
-    if (admin.totp_enabled) {
-      if (!totp_code) {
-        return res.status(401).json({ error: 'Two-factor authentication code required', require_2fa: true });
-      }
-      
-      const totp = new OTPAuth.TOTP({
-        issuer: 'CodeLibrary',
-        label: admin.email,
-        secret: OTPAuth.Secret.fromBase32(admin.totp_secret)
-      });
-      
-      const delta = totp.validate({ token: String(totp_code).trim(), window: 1 });
-      if (delta === null) {
-        return res.status(401).json({ error: 'Invalid 2FA code', require_2fa: true });
-      }
-    }
-
-    // Create session JWT token
-    const token = jwt.sign(
-      { id: admin.id, email: admin.email, username: admin.username, role: 'admin' }, 
-      config.JWT_SECRET, 
-      { expiresIn: '12h' }
-    );
-    
-    res.cookie('admin_token', token, { 
-      httpOnly: true, 
-      secure: process.env.NODE_ENV === 'production', 
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 12 * 3600000 
-    });
-    
-    logAudit(db, admin.id, 'LOGIN_OTP_SUCCESS', 'ADMIN', admin.id, { email: admin.email }, req.ip);
-    
-    return res.json({ 
-      success: true, 
-      token,
-      admin: { id: admin.id, email: admin.email, username: admin.username, totp_enabled: !!admin.totp_enabled } 
-    });
-  } catch (err) {
-    console.error('Verify OTP Error:', err);
-    return res.status(500).json({ error: 'Internal server error during verification' });
-  }
-});
-
-// Admin Login (Fallback & Compatibility Endpoint)
+// Admin Username + Password Login Endpoint
 router.post('/login', adminLoginLimiter, async (req, res) => {
-  const { username, email, password, otp, totp_code } = req.body;
-  
-  // If OTP is provided, route directly to OTP verification
-  if (otp) {
-    req.body.email = email || username;
-    return router.handle(req, res);
+  const { username, email, password, totp_code } = req.body;
+  const loginIdentifier = String(username || email || '').trim();
+  const rawPassword = String(password || '');
+
+  if (!loginIdentifier || !rawPassword) {
+    return res.status(400).json({ error: 'Please enter both username and password' });
   }
 
-  const loginIdentifier = (email || username || '').trim();
-  
-  if (!loginIdentifier || !password) {
-    return res.status(400).json({ error: 'Please enter both username/email and password' });
+  const clientIp = req.ip || '127.0.0.1';
+  const lockoutKey = `${clientIp}:${loginIdentifier.toLowerCase()}`;
+
+  // Check lockout
+  const lockout = checkLoginLockout(lockoutKey);
+  if (lockout.locked) {
+    return res.status(429).json({
+      error: `Too many failed login attempts. Account access is temporarily locked for ${lockout.remainingMins} minute(s).`
+    });
   }
 
   const db = getDb();
   try {
-    let admin = db.prepare('SELECT * FROM admins WHERE email = ? OR username = ?').get(loginIdentifier, loginIdentifier);
-    
-    // If admin not found by identifier, check if identifier matches config
-    if (!admin && (loginIdentifier === config.ADMIN_EMAIL || loginIdentifier === (config.ADMIN_USERNAME || 'admin'))) {
+    const configuredUsername = (config.ADMIN_USERNAME || 'admin').trim().toLowerCase();
+    const configuredEmail = (config.ADMIN_EMAIL || 'admin@codelibrary.in').trim().toLowerCase();
+    const lowerIdentifier = loginIdentifier.toLowerCase();
+
+    // Query admin by username or email (case-insensitive)
+    let admin = db.prepare('SELECT * FROM admins WHERE LOWER(username) = ? OR LOWER(email) = ?').get(lowerIdentifier, lowerIdentifier);
+
+    // If not found in DB but matches configured env credentials, sync from environment
+    if (!admin && (lowerIdentifier === configuredUsername || lowerIdentifier === configuredEmail)) {
       const { syncAdminAccount } = require('../db/schema');
       syncAdminAccount(db);
-      admin = db.prepare('SELECT * FROM admins WHERE email = ? OR username = ?').get(loginIdentifier, loginIdentifier);
+      admin = db.prepare('SELECT * FROM admins WHERE LOWER(username) = ? OR LOWER(email) = ?').get(lowerIdentifier, lowerIdentifier);
     }
 
-    if (!admin) return res.status(401).json({ error: 'Invalid admin credentials' });
+    if (!admin) {
+      const rec = recordFailedLogin(lockoutKey);
+      const remainingAttempts = Math.max(0, 5 - rec.count);
+      return res.status(401).json({
+        error: remainingAttempts > 0 
+          ? `Invalid admin username or password. ${remainingAttempts} attempt(s) remaining before temporary lockout.`
+          : 'Invalid admin username or password. Account is now temporarily locked for 15 minutes.'
+      });
+    }
 
-    let match = await bcrypt.compare(password, admin.password_hash);
-    
-    // Direct match check against configured environment variable if hash was generated before env update
-    if (!match && config.ADMIN_PASSWORD && password === config.ADMIN_PASSWORD && (loginIdentifier === config.ADMIN_EMAIL || loginIdentifier === config.ADMIN_USERNAME)) {
+    // Password verification via bcrypt
+    let match = false;
+    if (admin.password_hash) {
+      match = await bcrypt.compare(rawPassword, admin.password_hash);
+    }
+
+    // Direct match against environment variable if changed in Render after startup
+    if (!match && config.ADMIN_PASSWORD && rawPassword === config.ADMIN_PASSWORD && (lowerIdentifier === configuredUsername || lowerIdentifier === configuredEmail)) {
       match = true;
-      const newHash = bcrypt.hashSync(password, 10);
+      const newHash = bcrypt.hashSync(rawPassword, 10);
       db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(newHash, admin.id);
     }
 
-    if (!match) return res.status(401).json({ error: 'Invalid admin credentials' });
+    if (!match) {
+      const rec = recordFailedLogin(lockoutKey);
+      const remainingAttempts = Math.max(0, 5 - rec.count);
+      return res.status(401).json({
+        error: remainingAttempts > 0 
+          ? `Invalid admin username or password. ${remainingAttempts} attempt(s) remaining before temporary lockout.`
+          : 'Invalid admin username or password. Account is now temporarily locked for 15 minutes.'
+      });
+    }
 
+    // Two-Factor Authentication (TOTP) verification if enabled
     if (admin.totp_enabled) {
       if (!totp_code) {
         return res.status(401).json({ error: 'Two-factor authentication code required', require_2fa: true });
       }
-      
+
       const totp = new OTPAuth.TOTP({
         issuer: 'CodeLibrary',
-        label: admin.email,
+        label: admin.email || admin.username,
         secret: OTPAuth.Secret.fromBase32(admin.totp_secret)
       });
-      
-      const delta = totp.validate({ token: totp_code.trim(), window: 1 });
+
+      const delta = totp.validate({ token: String(totp_code).trim(), window: 1 });
       if (delta === null) {
-        return res.status(401).json({ error: 'Invalid 2FA code', require_2fa: true });
+        return res.status(401).json({ error: 'Invalid 2FA authenticator code', require_2fa: true });
       }
     }
 
+    // Successful login: clear failed attempts
+    clearFailedLogin(lockoutKey);
+
+    // Issue signed JWT token with 12h expiration
     const token = jwt.sign(
-      { id: admin.id, email: admin.email, username: admin.username, role: 'admin' }, 
-      config.JWT_SECRET, 
+      { id: admin.id, email: admin.email, username: admin.username, role: 'admin' },
+      config.JWT_SECRET,
       { expiresIn: '12h' }
     );
-    
-    res.cookie('admin_token', token, { 
-      httpOnly: true, 
-      secure: process.env.NODE_ENV === 'production', 
+
+    // Set secure cookie
+    res.cookie('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 12 * 3600000 
+      maxAge: 12 * 3600000 // 12 hours
     });
-    
-    logAudit(db, admin.id, 'LOGIN', 'ADMIN', admin.id, { email: admin.email }, req.ip);
-    res.json({ 
-      success: true, 
+
+    logAudit(db, admin.id, 'LOGIN_SUCCESS', 'ADMIN', admin.id, { username: admin.username }, req.ip);
+
+    return res.json({
+      success: true,
       token,
-      admin: { id: admin.id, email: admin.email, username: admin.username, totp_enabled: !!admin.totp_enabled } 
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        username: admin.username,
+        totp_enabled: !!admin.totp_enabled
+      }
     });
   } catch (err) {
     console.error('Admin login error:', err);
-    res.status(500).json({ error: 'Internal server error during admin login' });
+    return res.status(500).json({ error: 'Internal server error during admin login' });
   }
 });
 

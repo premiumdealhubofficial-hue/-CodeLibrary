@@ -26,27 +26,11 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many API requests, please try again later.' }
 });
 
-const otpSendLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 15,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many OTP requests from this IP. Please wait 15 minutes before requesting again.' }
-});
-
-const otpVerifyLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 25,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many OTP verification attempts from this IP. Please wait 15 minutes.' }
-});
-
 const contactLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
   message: { error: 'Too many contact submissions, please try again later.' }
 });
 
-module.exports = { generalLimiter, loginLimiter, adminLoginLimiter, otpSendLimiter, otpVerifyLimiter, apiLimiter, contactLimiter };
+module.exports = { generalLimiter, loginLimiter, adminLoginLimiter, apiLimiter, contactLimiter };
 

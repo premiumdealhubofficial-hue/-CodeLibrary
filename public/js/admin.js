@@ -82,8 +82,8 @@ const adminApi = async (path, options = {}) => {
     const data = await response.json().catch(() => ({}));
 
     if (response.status === 401) {
-      if (path === '/api/admin/login' || path === '/api/admin/verify-otp' || path === '/api/admin/send-otp') {
-        const loginErr = new Error(data.error || 'Invalid credentials or code');
+      if (path === '/api/admin/login') {
+        const loginErr = new Error(data.error || 'Invalid username or password');
         loginErr.require_2fa = !!data.require_2fa;
         throw loginErr;
       }
@@ -134,149 +134,46 @@ const checkAdminAuth = async () => {
   }
 };
 
-let otpTimerInterval = null;
-let resendTimerInterval = null;
-let isSendingOtp = false;
-let isVerifyingOtp = false;
+let isLoggingIn = false;
 
-const stopOtpTimers = () => {
-  if (otpTimerInterval) { clearInterval(otpTimerInterval); otpTimerInterval = null; }
-  if (resendTimerInterval) { clearInterval(resendTimerInterval); resendTimerInterval = null; }
-};
-
-const startOtpTimers = () => {
-  stopOtpTimers();
-  
-  // 5-minute expiry countdown (300 seconds)
-  let expirySeconds = 300;
-  const timerEl = document.getElementById('otp-timer');
-  
-  const updateExpiryDisplay = () => {
-    const mins = Math.floor(expirySeconds / 60);
-    const secs = expirySeconds % 60;
-    if (timerEl) {
-      timerEl.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-    }
-  };
-  
-  updateExpiryDisplay();
-  otpTimerInterval = setInterval(() => {
-    expirySeconds--;
-    if (expirySeconds <= 0) {
-      stopOtpTimers();
-      if (timerEl) timerEl.innerText = 'Expired';
-      renderLoginError('Verification code has expired. Please request a new code.');
-    } else {
-      updateExpiryDisplay();
-    }
-  }, 1000);
-
-  // 45-second resend countdown
-  let resendSeconds = 45;
-  const resendBtn = document.getElementById('btn-resend-otp');
-  const resendCounter = document.getElementById('resend-counter');
-  
-  if (resendBtn) resendBtn.disabled = true;
-  if (resendCounter) resendCounter.innerText = resendSeconds;
-
-  resendTimerInterval = setInterval(() => {
-    resendSeconds--;
-    if (resendSeconds <= 0) {
-      clearInterval(resendTimerInterval);
-      resendTimerInterval = null;
-      if (resendBtn) {
-        resendBtn.disabled = false;
-        resendBtn.innerHTML = '<i class="fas fa-redo-alt"></i> Resend OTP';
-      }
-    } else {
-      if (resendCounter) resendCounter.innerText = resendSeconds;
-    }
-  }, 1000);
-};
-
-const handleSendOtp = async (e) => {
+const handleLogin = async (e) => {
   if (e) e.preventDefault();
-  if (isSendingOtp) return; // Prevent duplicate concurrent requests
+  if (isLoggingIn) return; // Prevent concurrent submissions
 
-  const emailInput = document.getElementById('login-email');
-  const email = (emailInput?.value || '').trim();
-  const statusEl = document.getElementById('login-status');
-  const btn = document.getElementById('btn-send-otp');
-  
-  if (!email) {
-    renderLoginError('Please enter your admin email address.');
+  const usernameInput = document.getElementById('login-username');
+  const passwordInput = document.getElementById('login-password');
+  const totpInput = document.getElementById('login-totp');
+  const btn = document.getElementById('btn-login');
+
+  const username = (usernameInput?.value || '').trim();
+  const password = (passwordInput?.value || '');
+  const totp_code = (totpInput?.value || '').trim();
+
+  if (!username) {
+    renderLoginError('Please enter your admin username or email.');
+    usernameInput?.focus();
     return;
   }
 
-  isSendingOtp = true;
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Sending Verification Code...</span>';
-  }
-  renderLoginError('');
-  if (statusEl) { statusEl.innerText = ''; statusEl.style.display = 'none'; }
-
-  try {
-    const res = await adminApi('/api/admin/send-otp', {
-      method: 'POST',
-      body: { email }
-    });
-
-    const displayEmail = document.getElementById('display-admin-email');
-    if (displayEmail) displayEmail.innerText = email;
-
-    document.getElementById('otp-request-form').style.display = 'none';
-    document.getElementById('otp-verify-form').style.display = 'block';
-
-    const otpInput = document.getElementById('login-otp');
-    if (otpInput) {
-      otpInput.value = '';
-      otpInput.focus();
-    }
-
-    startOtpTimers();
-    showAdminToast(res.message || 'Verification code sent to your email', 'info');
-  } catch (err) {
-    const errorMsg = err.message || 'Failed to send verification code. Please check server SMTP settings.';
-    renderLoginError(errorMsg);
-    showAdminToast(errorMsg, 'error');
-  } finally {
-    isSendingOtp = false;
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-paper-plane"></i> <span>Send Verification Code</span>';
-    }
-  }
-};
-
-const handleVerifyOtp = async (e) => {
-  if (e) e.preventDefault();
-  if (isVerifyingOtp) return;
-
-  const email = (document.getElementById('login-email')?.value || '').trim();
-  const otp = (document.getElementById('login-otp')?.value || '').trim();
-  const totp = document.getElementById('login-totp')?.value?.trim() || '';
-  const btn = document.getElementById('btn-verify-otp');
-
-  if (!otp || otp.length !== 6) {
-    renderLoginError('Please enter the complete 6-digit verification code.');
+  if (!password) {
+    renderLoginError('Please enter your admin password.');
+    passwordInput?.focus();
     return;
   }
 
-  isVerifyingOtp = true;
+  isLoggingIn = true;
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Verifying...</span>';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Signing in...</span>';
   }
   renderLoginError('');
 
   try {
-    const res = await adminApi('/api/admin/verify-otp', {
+    const res = await adminApi('/api/admin/login', {
       method: 'POST',
-      body: { email, otp, totp_code: totp }
+      body: { username, password, totp_code }
     });
 
-    stopOtpTimers();
     if (res.token) {
       localStorage.setItem('admin_token', res.token);
     }
@@ -288,44 +185,36 @@ const handleVerifyOtp = async (e) => {
       const totpField = document.getElementById('totp-field');
       if (totpField) {
         totpField.style.display = 'block';
-        document.getElementById('login-totp')?.focus();
+        totpInput?.focus();
       }
+      renderLoginError('Please enter the 6-digit 2FA code from your Authenticator app.');
+    } else {
+      renderLoginError(err.message || 'Invalid username or password.');
     }
-    const errorMsg = err.message || 'Verification failed. Please check the code.';
-    renderLoginError(errorMsg);
-    showAdminToast(errorMsg, 'error');
+    showAdminToast(err.message || 'Login failed', 'error');
   } finally {
-    isVerifyingOtp = false;
+    isLoggingIn = false;
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> <span>Verify & Sign In</span>';
+      btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> <span>Sign In to Admin Panel</span>';
     }
   }
 };
 
-const handleChangeEmail = () => {
-  stopOtpTimers();
-  const reqForm = document.getElementById('otp-request-form');
-  const verifyForm = document.getElementById('otp-verify-form');
-  const errorEl = document.getElementById('login-error');
-  const otpInput = document.getElementById('login-otp');
-  const totpField = document.getElementById('totp-field');
+const togglePasswordVisibility = () => {
+  const pwdInput = document.getElementById('login-password');
+  const icon = document.getElementById('password-toggle-icon');
+  if (!pwdInput || !icon) return;
 
-  if (verifyForm) verifyForm.style.display = 'none';
-  if (reqForm) reqForm.style.display = 'block';
-  if (errorEl) errorEl.innerText = '';
-  if (otpInput) otpInput.value = '';
-  if (totpField) totpField.style.display = 'none';
-
-  const emailInput = document.getElementById('login-email');
-  if (emailInput) {
-    emailInput.focus();
-    emailInput.select();
+  if (pwdInput.type === 'password') {
+    pwdInput.type = 'text';
+    icon.classList.remove('fa-eye');
+    icon.classList.add('fa-eye-slash');
+  } else {
+    pwdInput.type = 'password';
+    icon.classList.remove('fa-eye-slash');
+    icon.classList.add('fa-eye');
   }
-};
-
-const handleResendOtp = () => {
-  handleSendOtp();
 };
 
 const handleLogout = async () => {
@@ -334,7 +223,6 @@ const handleLogout = async () => {
   } catch (e) {
     // Ignored
   }
-  stopOtpTimers();
   localStorage.removeItem('admin_token');
   adminState.admin = null;
   showLoginScreen();
@@ -342,17 +230,25 @@ const handleLogout = async () => {
 };
 
 const showLoginScreen = () => {
-  stopOtpTimers();
   document.getElementById('admin-dashboard').style.display = 'none';
   document.getElementById('admin-login').style.display = 'flex';
   
-  // Reset login forms to step 1
-  const reqForm = document.getElementById('otp-request-form');
-  const verifyForm = document.getElementById('otp-verify-form');
   const errorEl = document.getElementById('login-error');
-  if (reqForm) reqForm.style.display = 'block';
-  if (verifyForm) verifyForm.style.display = 'none';
-  if (errorEl) errorEl.innerText = '';
+  if (errorEl) errorEl.style.display = 'none';
+
+  const totpField = document.getElementById('totp-field');
+  if (totpField) totpField.style.display = 'none';
+
+  const pwdInput = document.getElementById('login-password');
+  const icon = document.getElementById('password-toggle-icon');
+  if (pwdInput) {
+    pwdInput.type = 'password';
+    pwdInput.value = '';
+  }
+  if (icon) {
+    icon.classList.remove('fa-eye-slash');
+    icon.classList.add('fa-eye');
+  }
 };
 
 const showDashboard = () => {
@@ -1587,13 +1483,9 @@ document.getElementById('btn-disable-2fa')?.addEventListener('click', async () =
 });
 
 // Event Listeners
-document.getElementById('otp-request-form')?.addEventListener('submit', handleSendOtp);
-document.getElementById('btn-send-otp')?.addEventListener('click', handleSendOtp);
-document.getElementById('otp-verify-form')?.addEventListener('submit', handleVerifyOtp);
-document.getElementById('btn-verify-otp')?.addEventListener('click', handleVerifyOtp);
-document.getElementById('btn-change-email')?.addEventListener('click', handleChangeEmail);
-document.getElementById('btn-resend-otp')?.addEventListener('click', handleResendOtp);
-document.getElementById('login-form')?.addEventListener('submit', handleVerifyOtp);
+document.getElementById('login-form')?.addEventListener('submit', handleLogin);
+document.getElementById('btn-login')?.addEventListener('click', handleLogin);
+document.getElementById('btn-toggle-password')?.addEventListener('click', togglePasswordVisibility);
 document.getElementById('admin-logout')?.addEventListener('click', handleLogout);
 document.getElementById('contact-settings-form')?.addEventListener('submit', handleContactSettingsSubmit);
 
