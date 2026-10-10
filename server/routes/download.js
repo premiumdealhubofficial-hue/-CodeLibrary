@@ -106,10 +106,22 @@ async function handleDownloadDelivery(req, res) {
   const localPath = localFilename ? path.join(localDir, localFilename) : null;
   const hasLocalFile = localPath && fs.existsSync(localPath);
 
-  if (!driveUrl && !hasLocalFile) {
+  // Determine if local file is a real uploaded eBook or just a small dummy file
+  let isRealLocalFile = false;
+  if (hasLocalFile) {
+    try {
+      const stats = fs.statSync(localPath);
+      // Dummy sample files generated in seed are ~1KB. Real eBooks are >15KB
+      if (stats.size > 15000) {
+        isRealLocalFile = true;
+      }
+    } catch (e) {}
+  }
+
+  if (!driveUrl && !isRealLocalFile) {
     return res.status(404).json({
       success: false,
-      error: 'PDF is not available yet. Please contact support.'
+      error: 'eBook PDF is being prepared. Please contact support@codelibrary.in.'
     });
   }
 
@@ -130,8 +142,55 @@ async function handleDownloadDelivery(req, res) {
     });
   }
 
-  // 1. Deliver local file if present
-  if (hasLocalFile) {
+  // 1. PRIMARY SOURCE: Deliver configured Google Drive URL / External Link if set
+  if (driveUrl) {
+    const isFolder = driveUrl.includes('/folders/');
+    const fileIdMatch = driveUrl.match(/(?:\/file\/d\/|\/d\/|id=)([a-zA-Z0-9_-]{20,})/);
+    const fileId = fileIdMatch ? fileIdMatch[1] : null;
+
+    if (fileId && !isFolder) {
+      const directDownloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+
+        const upstreamRes = await fetch(directDownloadUrl, {
+          signal: controller.signal,
+          redirect: 'follow',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          }
+        });
+        clearTimeout(timeout);
+
+        const contentType = (upstreamRes.headers.get('content-type') || '').toLowerCase();
+        if (upstreamRes.ok && (contentType.includes('application/pdf') || contentType.includes('application/octet-stream') || contentType.includes('binary'))) {
+          const arrayBuffer = await upstreamRes.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+
+          // Verify it is a valid PDF
+          if (buffer.length > 4 && buffer.slice(0, 4).toString() === '%PDF') {
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${book.slug || 'ebook'}.pdf"`);
+            res.setHeader('Content-Length', buffer.length);
+            res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+            return res.send(buffer);
+          }
+        }
+      } catch (proxyErr) {
+        console.warn('[Google Drive Stream Notice - Redirecting]:', proxyErr.message);
+      }
+    }
+
+    // Direct redirect to the Google Drive file or folder URL
+    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    return res.redirect(302, driveUrl);
+  }
+
+  // 2. SECONDARY SOURCE: Deliver real local file if present and no Google Drive link is set
+  if (isRealLocalFile) {
     try {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${book.slug || 'ebook'}.pdf"`);
@@ -145,49 +204,9 @@ async function handleDownloadDelivery(req, res) {
     }
   }
 
-  // 2. Deliver via Google Drive integration
-  if (driveUrl) {
-    const driveFileIdMatch = driveUrl.match(/(?:\/file\/d\/|\/d\/|id=|\/folders\/)([a-zA-Z0-9_-]+)/);
-    const fileId = driveFileIdMatch ? driveFileIdMatch[1] : null;
-
-    if (fileId && !driveUrl.includes('/folders/')) {
-      const directDownloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000);
-
-        const upstreamRes = await fetch(directDownloadUrl, {
-          signal: controller.signal,
-          redirect: 'follow',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-          }
-        });
-        clearTimeout(timeout);
-
-        const contentType = upstreamRes.headers.get('content-type') || '';
-        if (upstreamRes.ok && (contentType.includes('application/pdf') || contentType.includes('application/octet-stream'))) {
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', `inline; filename="${book.slug || 'ebook'}.pdf"`);
-          res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-          res.setHeader('Pragma', 'no-cache');
-          res.setHeader('Expires', '0');
-
-          const arrayBuffer = await upstreamRes.arrayBuffer();
-          return res.send(Buffer.from(arrayBuffer));
-        }
-      } catch (proxyErr) {
-        // Fallback to direct redirect
-      }
-    }
-
-    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-    return res.redirect(302, driveUrl);
-  }
-
   return res.status(404).json({
     success: false,
-    error: 'PDF is not available yet. Please contact support.'
+    error: 'eBook PDF is being updated. Please contact support.'
   });
 }
 
