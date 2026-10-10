@@ -1,20 +1,116 @@
+const { Resend } = require('resend');
 const nodemailer = require('nodemailer');
 const config = require('./config');
 
 /**
- * Checks if any email delivery service (SMTP or HTTPS API) is configured.
+ * Resolves verified or default sender address for Resend.
+ * Default: 'CodeLibrary Security <onboarding@resend.dev>' (works out of the box on free tier)
+ * Custom verified domain: e.g. 'CodeLibrary Security <security@codelibrary.in>'
+ */
+function resolveResendFromAddress() {
+  let from = config.RESEND_FROM || config.SMTP_FROM || '';
+  if (!from || from.includes('smtp.gmail.com') || from.includes('no-reply@codelibrary.in')) {
+    // If no custom domain sender is set, use Resend's default verified sandbox sender
+    return 'CodeLibrary Security <onboarding@resend.dev>';
+  }
+  if (!from.includes('<')) {
+    return `CodeLibrary Security <${from}>`;
+  }
+  return from;
+}
+
+/**
+ * Checks if any email delivery service (Resend API or SMTP) is configured.
  */
 function isSmtpConfigured() {
   return Boolean(
     config.RESEND_API_KEY ||
     config.BREVO_API_KEY ||
-    config.SENDGRID_API_KEY ||
     (config.SMTP_USER && config.SMTP_PASS)
   );
 }
 
 /**
- * Builds list of prioritized transporters with aggressive timeouts and fallbacks.
+ * Classifies raw email/API errors into safe, human-actionable instructions.
+ */
+function classifyEmailError(err) {
+  if (!err) return 'Unknown email delivery error';
+  const msg = String(err.message || err);
+  const code = String(err.code || '');
+
+  if (msg.includes('domain is not verified') || msg.includes('Domain not found')) {
+    return 'Resend Error: The sender domain is not verified. To send OTPs immediately without domain verification, set RESEND_FROM to CodeLibrary <onboarding@resend.dev> in Render.';
+  }
+  if (msg.includes('testing emails') || msg.includes('only send testing emails') || msg.includes('validation_error')) {
+    return `Resend Sandbox Notice: ${msg}. On unverified domains, Resend only sends to the email registered with your Resend account. To send to other emails, verify your domain in Resend Dashboard.`;
+  }
+  if (msg.includes('API key') || msg.includes('restricted_api_key') || msg.includes('401') || code === 'EAUTH') {
+    return 'Resend Authentication Error: Invalid API key. Please check the RESEND_API_KEY configured in Render Environment Variables.';
+  }
+  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT' || msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('timed out')) {
+    return 'Email delivery timed out. Please check your network or email service configuration in Render.';
+  }
+  return `Email delivery error: ${msg}`;
+}
+
+/**
+ * Sends OTP email via Resend API (HTTPS Port 443 - zero cloud firewall blockages).
+ */
+async function sendViaResend(toEmail, subject, htmlContent, textContent) {
+  if (!config.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not configured in environment variables.');
+  }
+
+  const fromAddress = resolveResendFromAddress();
+
+  // 1. Try Official Resend Node.js SDK
+  try {
+    const resend = new Resend(config.RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from: fromAddress,
+      to: [toEmail],
+      subject: subject,
+      html: htmlContent,
+      text: textContent
+    });
+
+    if (error) {
+      console.warn('[Resend SDK Warning]:', error);
+      throw new Error(error.message || 'Resend SDK delivery failed');
+    }
+
+    return { messageId: data?.id || 'resend-id-' + Date.now(), provider: 'resend-sdk' };
+  } catch (sdkErr) {
+    console.warn('[Resend SDK Fallback to HTTPS API]:', sdkErr.message);
+
+    // 2. Direct HTTPS REST API Fallback
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [toEmail],
+        subject: subject,
+        html: htmlContent,
+        text: textContent
+      })
+    });
+
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const errorMsg = body.message || body.error || `HTTP ${response.status} from Resend API`;
+      throw new Error(errorMsg);
+    }
+
+    return { messageId: body.id, provider: 'resend-https' };
+  }
+}
+
+/**
+ * Builds list of prioritized transporters with aggressive timeouts for SMTP fallback.
  */
 function createTransporters() {
   if (!config.SMTP_USER || !config.SMTP_PASS) {
@@ -22,10 +118,9 @@ function createTransporters() {
   }
 
   const host = config.SMTP_HOST || 'smtp.gmail.com';
-  const isGmail = host.toLowerCase().includes('gmail.com');
   const transports = [];
 
-  // Strategy 1: Port 587 STARTTLS (The standard submission port)
+  // Port 587 STARTTLS
   transports.push({
     name: `SMTP Port 587 STARTTLS (${host}:587)`,
     transporter: nodemailer.createTransport({
@@ -47,151 +142,36 @@ function createTransporters() {
     })
   });
 
-  // Strategy 2: Port 465 SSL Direct
-  transports.push({
-    name: `SMTP Port 465 SSL (${host}:465)`,
-    transporter: nodemailer.createTransport({
-      host: host,
-      port: 465,
-      secure: true,
-      family: 4,
-      auth: {
-        user: config.SMTP_USER,
-        pass: config.SMTP_PASS
-      },
-      connectionTimeout: 4000,
-      greetingTimeout: 4000,
-      socketTimeout: 5000,
-      tls: {
-        rejectUnauthorized: false
-      }
-    })
-  });
-
-  // Strategy 3: Gmail Service Preset
-  if (isGmail) {
-    transports.push({
-      name: 'Gmail Service Preset',
-      transporter: nodemailer.createTransport({
-        service: 'gmail',
-        family: 4,
-        auth: {
-          user: config.SMTP_USER,
-          pass: config.SMTP_PASS
-        },
-        connectionTimeout: 4000,
-        greetingTimeout: 4000,
-        socketTimeout: 5000
-      })
-    });
-  }
-
   return transports;
 }
 
 /**
- * Sends email via Resend HTTPS REST API (Port 443 - never blocked by cloud hosts).
- */
-async function sendViaResend(toEmail, subject, htmlContent, textContent) {
-  const from = config.SMTP_FROM || 'CodeLibrary Security <onboarding@resend.dev>';
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${config.RESEND_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      from: from.includes('<') ? from : `CodeLibrary <${from}>`,
-      to: [toEmail],
-      subject: subject,
-      html: htmlContent,
-      text: textContent
-    })
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.message || `Resend API error (${res.status})`);
-  }
-  return { messageId: data.id, provider: 'resend' };
-}
-
-/**
- * Sends email via Brevo (Sendinblue) HTTPS REST API (Port 443).
- */
-async function sendViaBrevo(toEmail, subject, htmlContent, textContent) {
-  const senderEmail = config.SMTP_USER || 'security@codelibrary.in';
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'api-key': config.BREVO_API_KEY,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      sender: { name: 'CodeLibrary Security', email: senderEmail },
-      to: [{ email: toEmail }],
-      subject: subject,
-      htmlContent: htmlContent,
-      textContent: textContent
-    })
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.message || `Brevo API error (${res.status})`);
-  }
-  return { messageId: data.messageId, provider: 'brevo' };
-}
-
-/**
- * Classifies raw SMTP/API error into a safe, human-actionable message.
- */
-function classifySmtpError(err) {
-  if (!err) return 'Unknown email delivery error';
-  const msg = String(err.message || err);
-  const code = String(err.code || '');
-
-  if (code === 'EAUTH' || msg.includes('535') || msg.includes('Username and Password not accepted') || msg.includes('BadCredentials')) {
-    return 'Gmail authentication failed. Please verify that SMTP_USER is correct and that SMTP_PASS is a valid 16-character Gmail App Password (generated in Google Account > Security > 2-Step Verification > App passwords).';
-  }
-  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT' || msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('timed out')) {
-    return 'Outbound SMTP connection timed out on Render. Outbound SMTP ports (587/465) are blocked on Render free tier. To enable instant delivery, configure RESEND_API_KEY or BREVO_API_KEY in Render Environment Variables.';
-  }
-  if (code === 'ECONNREFUSED' || code === 'EHOSTUNREACH' || code === 'ENOTFOUND') {
-    return 'Could not connect to mail server. Please verify SMTP_HOST and network configuration in Render.';
-  }
-  return `Email delivery error: ${msg}`;
-}
-
-/**
- * Safe diagnostics function to test SMTP and API connectivity without exposing secrets.
+ * Safe diagnostics function to test delivery connectivity without exposing secrets.
  */
 async function testSmtpConnection() {
   if (!isSmtpConfigured()) {
     return {
       configured: false,
-      message: 'No email delivery credentials configured. Please set RESEND_API_KEY, BREVO_API_KEY, or SMTP_USER & SMTP_PASS in Render Environment Variables.'
+      message: 'No email delivery credentials configured. Please set RESEND_API_KEY in Render Environment Variables.'
     };
   }
 
-  // If HTTPS API is configured
+  // If Resend API is configured
   if (config.RESEND_API_KEY) {
+    const keyPreview = config.RESEND_API_KEY.startsWith('re_') 
+      ? `re_${config.RESEND_API_KEY.substring(3, 7)}...` 
+      : 're_***';
     return {
       configured: true,
-      provider: 'Resend HTTPS API (Port 443)',
-      status: 'Active (Unrestricted by cloud firewalls)'
+      provider: 'Resend HTTP API (Port 443 HTTPS - Cloud Unrestricted)',
+      sender: resolveResendFromAddress(),
+      apiKeyConfigured: true,
+      apiKeyPrefix: keyPreview,
+      status: 'Active & Ready for OTP Delivery'
     };
   }
 
-  if (config.BREVO_API_KEY) {
-    return {
-      configured: true,
-      provider: 'Brevo HTTPS API (Port 443)',
-      status: 'Active (Unrestricted by cloud firewalls)'
-    };
-  }
-
-  // Test Nodemailer transports
+  // Test SMTP fallback
   const transports = createTransporters();
   const results = [];
 
@@ -218,9 +198,8 @@ async function testSmtpConnection() {
     configured: true,
     connected: false,
     host: config.SMTP_HOST || 'smtp.gmail.com',
-    userSanitized: config.SMTP_USER ? config.SMTP_USER.replace(/(.{2})(.*)(@.*)/, '$1***$3') : '',
     errors: results,
-    classifiedSummary: classifySmtpError(results[0]?.error)
+    classifiedSummary: classifyEmailError(results[0]?.error)
   };
 }
 
@@ -233,13 +212,13 @@ async function testSmtpConnection() {
  */
 async function sendAdminLoginOtp(toEmail, otpCode) {
   // Mock mode for local tests
-  if (process.env.NODE_ENV === 'test' && !config.SMTP_USER && !config.RESEND_API_KEY && !config.BREVO_API_KEY) {
+  if (process.env.NODE_ENV === 'test' && !config.SMTP_USER && !config.RESEND_API_KEY) {
     return { messageId: 'test-mock-id-' + Date.now(), accepted: [toEmail] };
   }
 
   if (!isSmtpConfigured()) {
-    const error = new Error('Email service is not configured on the server. Please configure RESEND_API_KEY or SMTP_USER & SMTP_PASS in Render Environment Variables.');
-    error.code = 'SMTP_NOT_CONFIGURED';
+    const error = new Error('Email delivery service is not configured on the server. Please set RESEND_API_KEY in Render Environment Variables.');
+    error.code = 'EMAIL_NOT_CONFIGURED';
     throw error;
   }
 
@@ -318,32 +297,28 @@ If you did not attempt to log in to the CodeLibrary Admin Panel, please ignore t
 
   const subject = `Your CodeLibrary Admin Verification Code: ${otpCode}`;
 
-  // 1. If Resend API Key is available, deliver via HTTPS (Port 443 - zero blockages)
+  // 1. Primary: Deliver via Resend HTTP API (Port 443 - zero blockages on Render)
   if (config.RESEND_API_KEY) {
     try {
-      return await sendViaResend(toEmail, subject, htmlContent, textContent);
+      const result = await sendViaResend(toEmail, subject, htmlContent, textContent);
+      return result;
     } catch (err) {
-      console.warn('[Resend Warning]:', err.message);
+      console.error('[Resend Delivery Error]:', err.message);
+      const classifiedMsg = classifyEmailError(err);
+      const error = new Error(classifiedMsg);
+      error.originalError = err;
+      throw error;
     }
   }
 
-  // 2. If Brevo API Key is available, deliver via HTTPS (Port 443)
-  if (config.BREVO_API_KEY) {
-    try {
-      return await sendViaBrevo(toEmail, subject, htmlContent, textContent);
-    } catch (err) {
-      console.warn('[Brevo Warning]:', err.message);
-    }
-  }
-
-  // 3. Deliver via Nodemailer SMTP transports with fallbacks
+  // 2. Fallback: SMTP Transports
   const transports = createTransporters();
   let lastError = null;
 
   for (const { name, transporter } of transports) {
     try {
       const mailOptions = {
-        from: config.SMTP_FROM || (config.SMTP_USER ? `CodeLibrary <${config.SMTP_USER}>` : 'CodeLibrary Security <no-reply@codelibrary.in>'),
+        from: config.SMTP_FROM || 'CodeLibrary Security <no-reply@codelibrary.in>',
         to: toEmail,
         subject: subject,
         text: textContent,
@@ -357,8 +332,7 @@ If you did not attempt to log in to the CodeLibrary Admin Panel, please ignore t
     }
   }
 
-  // If all failed, throw classified safe error
-  const classifiedMsg = classifySmtpError(lastError);
+  const classifiedMsg = classifyEmailError(lastError);
   const error = new Error(classifiedMsg);
   error.originalError = lastError;
   error.code = lastError?.code || 'EMAIL_SEND_FAILED';
@@ -368,7 +342,9 @@ If you did not attempt to log in to the CodeLibrary Admin Panel, please ignore t
 module.exports = {
   createTransporters,
   isSmtpConfigured,
-  classifySmtpError,
+  resolveResendFromAddress,
+  classifyEmailError,
   testSmtpConnection,
+  sendViaResend,
   sendAdminLoginOtp
 };

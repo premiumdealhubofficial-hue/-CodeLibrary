@@ -88,10 +88,10 @@ router.post('/send-otp', otpSendLimiter, async (req, res) => {
       return res.json(genericSuccess);
     }
 
-    // Verify SMTP service configuration
+    // Verify email service configuration
     if (!isSmtpConfigured() && process.env.NODE_ENV !== 'test') {
       return res.status(503).json({
-        error: 'SMTP email service is not configured on the server. Please configure SMTP_USER and SMTP_PASS in Render Environment Variables.',
+        error: 'Email delivery service is not configured on the server. Please configure RESEND_API_KEY in Render Environment Variables.',
         setup_required: true
       });
     }
@@ -108,7 +108,7 @@ router.post('/send-otp', otpSendLimiter, async (req, res) => {
     db.prepare('INSERT INTO admin_email_otps (id, email, otp_hash, expires_at, attempts) VALUES (?, ?, ?, ?, 0)')
       .run(uuidv4(), loginEmail, otpHash, expiresAt);
 
-    // Send email via Nodemailer
+    // Send email via Resend API / email service
     await sendAdminLoginOtp(admin.email, otp);
 
     logAudit(db, admin.id, 'OTP_SENT', 'ADMIN', admin.id, { email: admin.email }, req.ip);
@@ -119,13 +119,13 @@ router.post('/send-otp', otpSendLimiter, async (req, res) => {
     });
   } catch (err) {
     console.error('[Admin Send-OTP Error]:', err);
-    if (err.code === 'SMTP_NOT_CONFIGURED') {
+    if (err.code === 'SMTP_NOT_CONFIGURED' || err.code === 'EMAIL_NOT_CONFIGURED') {
       return res.status(503).json({
-        error: 'SMTP email service is not configured on the server. Please configure SMTP_USER and SMTP_PASS in Render Environment Variables.',
+        error: 'Email delivery service is not configured on the server. Please configure RESEND_API_KEY in Render Environment Variables.',
         setup_required: true
       });
     }
-    const safeError = err.message || 'Failed to deliver OTP verification email. Please verify server SMTP configuration.';
+    const safeError = err.message || 'Failed to deliver OTP verification email. Please check server email configuration.';
     return res.status(500).json({ error: safeError });
   }
 });
