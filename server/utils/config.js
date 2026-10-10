@@ -94,6 +94,9 @@ module.exports = {
   SMTP_USER: sanitizeEnv(process.env.SMTP_USER) || '',
   SMTP_PASS: sanitizeSmtpPass(process.env.SMTP_PASS),
   SMTP_FROM: sanitizeEnv(process.env.SMTP_FROM) || (sanitizeEnv(process.env.SMTP_USER) ? `CodeLibrary <${sanitizeEnv(process.env.SMTP_USER)}>` : 'CodeLibrary Security <no-reply@codelibrary.in>'),
+  RESEND_API_KEY: sanitizeEnv(process.env.RESEND_API_KEY) || '',
+  BREVO_API_KEY: sanitizeEnv(process.env.BREVO_API_KEY) || '',
+  SENDGRID_API_KEY: sanitizeEnv(process.env.SENDGRID_API_KEY) || '',
   BACKUP_DIR: sanitizeEnv(process.env.BACKUP_DIR) || 'backups',
   BACKUP_RETENTION_COUNT: parseInt(process.env.BACKUP_RETENTION_COUNT, 10) || 30
 };
