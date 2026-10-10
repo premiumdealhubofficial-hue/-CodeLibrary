@@ -234,6 +234,9 @@ const togglePasswordVisibility = (e) => {
   }
 };
 
+window.handleLogin = handleLogin;
+window.togglePasswordVisibility = togglePasswordVisibility;
+
 const handleLogout = async () => {
   try {
     await adminApi('/api/admin/logout', { method: 'POST' });

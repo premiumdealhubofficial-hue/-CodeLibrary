@@ -53,15 +53,20 @@ app.use((req, res, next) => {
 
 app.use(cookieParser());
 
-// Static file serving from public/ directory with cache control
+// Static file serving from public/ directory with granular cache control
 app.use(express.static(path.join(__dirname, '..', 'public'), {
-  maxAge: '1d',
+  maxAge: 0,
   setHeaders: (res, filePath) => {
     // Aggressive caching for images and static fonts in public/uploads/covers and assets
     if (filePath.match(/\.(webp|png|jpe?g|svg|ico|gif|woff2?|ttf|eot)$/i)) {
       res.setHeader('Cache-Control', 'public, max-age=2592000, immutable'); // 30 days
+    } else if (filePath.match(/admin\.(html|js|css)/i) || filePath.endsWith('.html')) {
+      // Never cache admin documents and HTML pages so updates apply instantly
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
     } else if (filePath.match(/\.(css|js)$/i)) {
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // 1 day
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour
     }
   }
 }));
