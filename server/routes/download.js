@@ -6,6 +6,9 @@ const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/schema');
 const config = require('../utils/config');
 
+// In-memory cache for resolved Google Drive folder PDFs: folderId -> { result, cachedAt }
+const folderPdfCache = new Map();
+
 // Helper to check user/admin authentication from cookie if available
 function getSessionUser(req) {
   const token = req.cookies.token || req.cookies.admin_token;
@@ -15,6 +18,187 @@ function getSessionUser(req) {
   } catch (e) {
     return null;
   }
+}
+
+// Parse PDF files listed inside a public Google Drive folder HTML
+function extractPdfFilesFromDriveFolderHtml(html) {
+  const unescaped = html
+    .replace(/\\x22/g, '"')
+    .replace(/\\x5b/g, '[')
+    .replace(/\\x5d/g, ']')
+    .replace(/\\\//g, '/');
+
+  const results = [];
+  
+  // Primary pattern: "FILE_ID",["FOLDER_ID"],"FILENAME.pdf","application/pdf"
+  const fileRegex = /"([a-zA-Z0-9_-]{25,})",\s*\["([a-zA-Z0-9_-]{25,})"\],\s*"([^"]+?\.[a-zA-Z0-9]+)"/g;
+  let match;
+  while ((match = fileRegex.exec(unescaped)) !== null) {
+    const fileId = match[1];
+    const folderId = match[2];
+    const filename = match[3];
+    if (filename.toLowerCase().endsWith('.pdf') && !results.some(r => r.fileId === fileId)) {
+      results.push({ fileId, folderId, filename });
+    }
+  }
+
+  // Secondary pattern: "FILE_ID",null,"FILENAME.pdf" or ["FILE_ID",...,"FILENAME.pdf"]
+  const fileRegex2 = /"([a-zA-Z0-9_-]{25,})",\s*(?:null|\[[^\]]*\]),\s*"([^"]+?\.pdf)"/gi;
+  while ((match = fileRegex2.exec(unescaped)) !== null) {
+    const fileId = match[1];
+    const filename = match[2];
+    if (!results.some(r => r.fileId === fileId)) {
+      results.push({ fileId, filename });
+    }
+  }
+
+  // Tertiary pattern: ["FILENAME.pdf",null,1] or similar
+  const fileRegex3 = /\["([a-zA-Z0-9_-]{28,})"[^\]]*?"([^"]*?\.pdf)"/gi;
+  while ((match = fileRegex3.exec(unescaped)) !== null) {
+    const fileId = match[1];
+    const filename = match[2];
+    if (!results.some(r => r.fileId === fileId)) {
+      results.push({ fileId, filename });
+    }
+  }
+
+  return results;
+}
+
+// Match best PDF inside a multi-file folder based on eBook title and slug keywords
+function matchBestPdfForBook(files, book) {
+  if (!files || files.length === 0) return null;
+  if (files.length === 1) return files[0];
+
+  const titleWords = (book.title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 1);
+
+  const slugWords = (book.slug || '')
+    .toLowerCase()
+    .split('-')
+    .filter(w => w.length > 1);
+
+  const allKeywords = Array.from(new Set([...titleWords, ...slugWords]));
+
+  let bestFile = null;
+  let bestScore = -1;
+
+  for (const file of files) {
+    const fn = file.filename.toLowerCase();
+    let score = 0;
+
+    // Keyword matching
+    for (const kw of allKeywords) {
+      if (fn.includes(kw)) score += 10;
+    }
+
+    // Prefer comprehensive notes / handwritten notes over single quiz files
+    if (fn.includes('handwritten') || fn.includes('notes') || fn.includes('complete') || fn.includes('hand written')) {
+      score += 5;
+    }
+    if (fn.includes('interview') || fn.includes('qna') || fn.includes('questions')) {
+      score += 2;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestFile = file;
+    }
+  }
+
+  return bestFile || files[0];
+}
+
+// Resolve Google Drive folder link to exact PDF file ID and filename
+async function resolveDriveFolderToPdf(folderUrl, book) {
+  const folderMatch = folderUrl.match(/\/folders\/([a-zA-Z0-9_-]{20,})/);
+  const folderId = folderMatch ? folderMatch[1] : null;
+
+  if (folderId && folderPdfCache.has(folderId)) {
+    const cached = folderPdfCache.get(folderId);
+    if (Date.now() - cached.cachedAt < 15 * 60 * 1000) { // 15 min TTL
+      return cached.result;
+    }
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  const res = await fetch(folderUrl, {
+    signal: controller.signal,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
+  });
+  clearTimeout(timeout);
+
+  if (!res.ok) {
+    throw new Error(`Failed to access Google Drive folder (HTTP ${res.status})`);
+  }
+
+  const html = await res.text();
+  const pdfs = extractPdfFilesFromDriveFolderHtml(html);
+  
+  if (pdfs.length === 0) {
+    return null;
+  }
+
+  const matched = matchBestPdfForBook(pdfs, book);
+  if (folderId && matched) {
+    folderPdfCache.set(folderId, { result: matched, cachedAt: Date.now() });
+  }
+
+  return matched;
+}
+
+// Fetch real PDF binary buffer directly from Google Drive
+async function fetchPdfBufferFromDrive(fileId) {
+  const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+  
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+
+  const res = await fetch(directUrl, {
+    signal: controller.signal,
+    redirect: 'follow',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
+  });
+  clearTimeout(timeout);
+
+  if (!res.ok) {
+    throw new Error(`Google Drive download failed with HTTP ${res.status}`);
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  // Validate that it is a valid PDF
+  if (buffer.length < 100 || buffer.slice(0, 4).toString() !== '%PDF') {
+    // Check if Google returned a virus scan confirmation HTML page for large files (>25MB)
+    const htmlText = buffer.toString('utf8');
+    const confirmMatch = htmlText.match(/href="(\/uc\?export=download&amp;id=[^"]+&amp;confirm=[^"&]+)/);
+    if (confirmMatch) {
+      const confirmUrl = 'https://drive.google.com' + confirmMatch[1].replace(/&amp;/g, '&');
+      const confirmRes = await fetch(confirmUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        }
+      });
+      const confirmArrayBuffer = await confirmRes.arrayBuffer();
+      const confirmBuf = Buffer.from(confirmArrayBuffer);
+      if (confirmBuf.length > 100 && confirmBuf.slice(0, 4).toString() === '%PDF') {
+        return confirmBuf;
+      }
+    }
+    throw new Error('Downloaded file is not a valid PDF document');
+  }
+
+  return buffer;
 }
 
 // Core protected download delivery handler
@@ -106,7 +290,7 @@ async function handleDownloadDelivery(req, res) {
   const localPath = localFilename ? path.join(localDir, localFilename) : null;
   const hasLocalFile = localPath && fs.existsSync(localPath);
 
-  // Determine if local file is a real uploaded eBook or just a small dummy file
+  // Determine if local file is a real uploaded eBook or just a small dummy seed file
   let isRealLocalFile = false;
   if (hasLocalFile) {
     try {
@@ -142,49 +326,56 @@ async function handleDownloadDelivery(req, res) {
     });
   }
 
-  // 1. PRIMARY SOURCE: Deliver configured Google Drive URL / External Link if set
+  // 1. PRIMARY SOURCE: Deliver configured Google Drive URL / Folder / File
   if (driveUrl) {
     const isFolder = driveUrl.includes('/folders/');
-    const fileIdMatch = driveUrl.match(/(?:\/file\/d\/|\/d\/|id=)([a-zA-Z0-9_-]{20,})/);
-    const fileId = fileIdMatch ? fileIdMatch[1] : null;
+    let targetFileId = null;
+    let targetFilename = `${book.slug || 'ebook'}.pdf`;
 
-    if (fileId && !isFolder) {
-      const directDownloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+    if (isFolder) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 12000);
-
-        const upstreamRes = await fetch(directDownloadUrl, {
-          signal: controller.signal,
-          redirect: 'follow',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-          }
-        });
-        clearTimeout(timeout);
-
-        const contentType = (upstreamRes.headers.get('content-type') || '').toLowerCase();
-        if (upstreamRes.ok && (contentType.includes('application/pdf') || contentType.includes('application/octet-stream') || contentType.includes('binary'))) {
-          const arrayBuffer = await upstreamRes.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-
-          // Verify it is a valid PDF
-          if (buffer.length > 4 && buffer.slice(0, 4).toString() === '%PDF') {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename="${book.slug || 'ebook'}.pdf"`);
-            res.setHeader('Content-Length', buffer.length);
-            res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
-            return res.send(buffer);
-          }
+        const matched = await resolveDriveFolderToPdf(driveUrl, book);
+        if (matched) {
+          targetFileId = matched.fileId;
+          targetFilename = matched.filename || targetFilename;
+        } else {
+          return res.status(404).json({
+            success: false,
+            error: 'No valid PDF found in the configured Google Drive folder. Please contact support.'
+          });
         }
-      } catch (proxyErr) {
-        console.warn('[Google Drive Stream Notice - Redirecting]:', proxyErr.message);
+      } catch (folderErr) {
+        console.warn('[Drive Folder Resolution Error - Redirecting to folder]:', folderErr.message);
+        res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+        return res.redirect(302, driveUrl);
+      }
+    } else {
+      const fileIdMatch = driveUrl.match(/(?:\/file\/d\/|\/d\/|id=)([a-zA-Z0-9_-]{20,})/);
+      targetFileId = fileIdMatch ? fileIdMatch[1] : null;
+    }
+
+    if (targetFileId) {
+      try {
+        const buffer = await fetchPdfBufferFromDrive(targetFileId);
+        
+        // Clean attachment filename
+        const safeFilename = targetFilename.replace(/[^\w\s.-]/gi, '_');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+        res.setHeader('Content-Length', buffer.length);
+        res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        return res.send(buffer);
+      } catch (streamErr) {
+        console.warn('[Direct Drive PDF Fetch Notice - Fallback]:', streamErr.message);
+        // If streaming failed and it was a direct file or folder, fallback to 302 redirect
+        res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+        return res.redirect(302, driveUrl);
       }
     }
 
-    // Direct redirect to the Google Drive file or folder URL
+    // Direct redirect if file ID could not be determined
     res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     return res.redirect(302, driveUrl);
   }
