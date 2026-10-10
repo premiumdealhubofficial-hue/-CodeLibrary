@@ -3,20 +3,67 @@ const config = require('./config');
 
 /**
  * Builds list of prioritized transporters with aggressive timeouts and fallbacks.
+ * Strategy 1: Port 587 (SMTP + STARTTLS) - Most reliable on cloud providers like Render
+ * Strategy 2: Port 465 (SMTPS + SSL direct)
+ * Strategy 3: Service Preset (service: 'gmail')
  */
 function createTransporters() {
   if (!config.SMTP_USER || !config.SMTP_PASS) {
     return [];
   }
 
-  const port = Number(config.SMTP_PORT) || 465;
-  const isGmail = (config.SMTP_HOST || 'smtp.gmail.com').toLowerCase().includes('gmail.com');
+  const host = config.SMTP_HOST || 'smtp.gmail.com';
+  const configuredPort = Number(config.SMTP_PORT) || 587;
+  const isGmail = host.toLowerCase().includes('gmail.com');
   const transports = [];
 
-  // Strategy 1: For Gmail, service: 'gmail' with IPv4 forced
+  // Primary Strategy: Port 587 STARTTLS (The cloud standard for submission)
+  transports.push({
+    name: `SMTP Port 587 STARTTLS (${host}:587)`,
+    transporter: nodemailer.createTransport({
+      host: host,
+      port: 587,
+      secure: false, // Must be false for STARTTLS
+      requireTLS: true,
+      family: 4, // Force IPv4
+      auth: {
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASS
+      },
+      connectionTimeout: 5000, // 5 seconds
+      greetingTimeout: 5000,
+      socketTimeout: 7000,
+      tls: {
+        rejectUnauthorized: false
+      }
+    })
+  });
+
+  // Secondary Strategy: Port 465 SSL Direct (if 587 is blocked or host requires 465)
+  transports.push({
+    name: `SMTP Port 465 SSL (${host}:465)`,
+    transporter: nodemailer.createTransport({
+      host: host,
+      port: 465,
+      secure: true, // Must be true for port 465
+      family: 4,
+      auth: {
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASS
+      },
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 7000,
+      tls: {
+        rejectUnauthorized: false
+      }
+    })
+  });
+
+  // Tertiary Strategy: Service Preset for Gmail
   if (isGmail) {
     transports.push({
-      name: 'Gmail Service Preset (IPv4)',
+      name: 'Gmail Service Preset',
       transporter: nodemailer.createTransport({
         service: 'gmail',
         family: 4,
@@ -24,61 +71,18 @@ function createTransporters() {
           user: config.SMTP_USER,
           pass: config.SMTP_PASS
         },
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 10000
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 7000
       })
     });
   }
-
-  // Strategy 2: Direct Host/Port Config (e.g. port 465 SSL, IPv4)
-  transports.push({
-    name: `Direct SMTP (${config.SMTP_HOST || 'smtp.gmail.com'}:${port})`,
-    transporter: nodemailer.createTransport({
-      host: config.SMTP_HOST || 'smtp.gmail.com',
-      port: port,
-      secure: port === 465,
-      family: 4,
-      auth: {
-        user: config.SMTP_USER,
-        pass: config.SMTP_PASS
-      },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000,
-      tls: {
-        rejectUnauthorized: false
-      }
-    })
-  });
-
-  // Strategy 3: Port 587 STARTTLS Fallback (IPv4)
-  transports.push({
-    name: `Fallback SMTP (${config.SMTP_HOST || 'smtp.gmail.com'}:587 STARTTLS)`,
-    transporter: nodemailer.createTransport({
-      host: config.SMTP_HOST || 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      requireTLS: true,
-      family: 4,
-      auth: {
-        user: config.SMTP_USER,
-        pass: config.SMTP_PASS
-      },
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 10000,
-      tls: {
-        rejectUnauthorized: false
-      }
-    })
-  });
 
   return transports;
 }
 
 /**
- * Checks if the SMTP delivery service is properly configured with credentials.
+ * Checks if the SMTP delivery service is configured with user credentials.
  */
 function isSmtpConfigured() {
   return Boolean(config.SMTP_USER && config.SMTP_PASS);
@@ -93,15 +97,58 @@ function classifySmtpError(err) {
   const code = String(err.code || '');
 
   if (code === 'EAUTH' || msg.includes('535') || msg.includes('Username and Password not accepted') || msg.includes('BadCredentials')) {
-    return 'Gmail authentication failed. Please verify that SMTP_USER is correct and that SMTP_PASS is a valid 16-character Gmail App Password (generated under Google Account > Security > 2-Step Verification > App passwords).';
+    return 'Gmail SMTP authentication failed. Please verify that SMTP_USER is correct and that SMTP_PASS is a valid 16-character Gmail App Password (generated in Google Account > Security > 2-Step Verification > App passwords).';
   }
   if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT' || msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('timed out')) {
-    return 'Connection to Gmail SMTP server timed out. Please verify your Render environment network settings or SMTP configuration.';
+    return 'Connection to Gmail SMTP server timed out on ports 587 and 465. Outbound SMTP connection blocked by hosting network or invalid host.';
   }
   if (code === 'ECONNREFUSED' || code === 'EHOSTUNREACH' || code === 'ENOTFOUND') {
-    return 'Could not connect to SMTP mail server. Please verify SMTP_HOST and SMTP_PORT in Render.';
+    return 'Could not connect to SMTP mail server. Please verify SMTP_HOST and SMTP_PORT in Render Environment Variables.';
   }
   return `Email delivery error: ${msg}`;
+}
+
+/**
+ * Safe diagnostics function to test SMTP connectivity without exposing secrets.
+ */
+async function testSmtpConnection() {
+  if (!isSmtpConfigured()) {
+    return {
+      configured: false,
+      message: 'SMTP credentials not configured. Please set SMTP_USER and SMTP_PASS in Render Environment Variables.'
+    };
+  }
+
+  const transports = createTransporters();
+  const results = [];
+
+  for (const { name, transporter } of transports) {
+    try {
+      await transporter.verify();
+      return {
+        configured: true,
+        connected: true,
+        activeTransport: name,
+        host: config.SMTP_HOST || 'smtp.gmail.com',
+        userSanitized: config.SMTP_USER.replace(/(.{2})(.*)(@.*)/, '$1***$3')
+      };
+    } catch (err) {
+      results.push({
+        transport: name,
+        error: err.message,
+        code: err.code
+      });
+    }
+  }
+
+  return {
+    configured: true,
+    connected: false,
+    host: config.SMTP_HOST || 'smtp.gmail.com',
+    userSanitized: config.SMTP_USER.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
+    errors: results,
+    classifiedSummary: classifySmtpError(results[0]?.error)
+  };
 }
 
 /**
@@ -247,5 +294,6 @@ module.exports = {
   createTransporters,
   isSmtpConfigured,
   classifySmtpError,
+  testSmtpConnection,
   sendAdminLoginOtp
 };

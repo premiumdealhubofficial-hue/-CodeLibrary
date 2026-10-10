@@ -13,7 +13,7 @@ const config = require('../utils/config');
 const { authenticateAdmin } = require('../middleware/auth');
 const { adminLoginLimiter, otpSendLimiter, otpVerifyLimiter } = require('../middleware/rateLimiter');
 const { createDatabaseBackup, listBackups, BACKUP_DIR } = require('../utils/backup');
-const { sendAdminLoginOtp, isSmtpConfigured } = require('../utils/email');
+const { sendAdminLoginOtp, isSmtpConfigured, testSmtpConnection } = require('../utils/email');
 
 // Helper to save base64 cover image to public/uploads/covers/
 function saveBase64CoverImage(dataUrl, bookId) {
@@ -118,7 +118,7 @@ router.post('/send-otp', otpSendLimiter, async (req, res) => {
       message: `A 6-digit verification code has been sent to your email. It will expire in 5 minutes.`
     });
   } catch (err) {
-    console.error('Send OTP Error:', err);
+    console.error('[Admin Send-OTP Error]:', err);
     if (err.code === 'SMTP_NOT_CONFIGURED') {
       return res.status(503).json({
         error: 'SMTP email service is not configured on the server. Please configure SMTP_USER and SMTP_PASS in Render Environment Variables.',
@@ -127,6 +127,16 @@ router.post('/send-otp', otpSendLimiter, async (req, res) => {
     }
     const safeError = err.message || 'Failed to deliver OTP verification email. Please verify server SMTP configuration.';
     return res.status(500).json({ error: safeError });
+  }
+});
+
+// Safe SMTP Diagnostics Endpoint (Never exposes passwords)
+router.get('/smtp-status', async (req, res) => {
+  try {
+    const diagnostic = await testSmtpConnection();
+    res.json(diagnostic);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

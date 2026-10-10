@@ -1588,7 +1588,9 @@ document.getElementById('btn-disable-2fa')?.addEventListener('click', async () =
 
 // Event Listeners
 document.getElementById('otp-request-form')?.addEventListener('submit', handleSendOtp);
+document.getElementById('btn-send-otp')?.addEventListener('click', handleSendOtp);
 document.getElementById('otp-verify-form')?.addEventListener('submit', handleVerifyOtp);
+document.getElementById('btn-verify-otp')?.addEventListener('click', handleVerifyOtp);
 document.getElementById('btn-change-email')?.addEventListener('click', handleChangeEmail);
 document.getElementById('btn-resend-otp')?.addEventListener('click', handleResendOtp);
 document.getElementById('login-form')?.addEventListener('submit', handleVerifyOtp);

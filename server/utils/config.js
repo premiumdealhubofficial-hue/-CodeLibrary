@@ -87,8 +87,10 @@ module.exports = {
   ADMIN_PASSWORD: sanitizeEnv(process.env.ADMIN_PASSWORD) || 'Admin@CodeLib2024!',
   ADMIN_USERNAME: sanitizeEnv(process.env.ADMIN_USERNAME) || 'admin',
   SMTP_HOST: sanitizeEnv(process.env.SMTP_HOST) || 'smtp.gmail.com',
-  SMTP_PORT: parseInt(process.env.SMTP_PORT, 10) || 465,
-  SMTP_SECURE: process.env.SMTP_SECURE !== undefined ? process.env.SMTP_SECURE === 'true' : true,
+  SMTP_PORT: parseInt(process.env.SMTP_PORT, 10) || 587,
+  SMTP_SECURE: process.env.SMTP_SECURE !== undefined 
+    ? process.env.SMTP_SECURE === 'true' 
+    : (parseInt(process.env.SMTP_PORT, 10) === 465),
   SMTP_USER: sanitizeEnv(process.env.SMTP_USER) || '',
   SMTP_PASS: sanitizeSmtpPass(process.env.SMTP_PASS),
   SMTP_FROM: sanitizeEnv(process.env.SMTP_FROM) || (sanitizeEnv(process.env.SMTP_USER) ? `CodeLibrary <${sanitizeEnv(process.env.SMTP_USER)}>` : 'CodeLibrary Security <no-reply@codelibrary.in>'),
