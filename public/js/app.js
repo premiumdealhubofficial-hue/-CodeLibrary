@@ -1483,6 +1483,7 @@ function openModal(id) {
     document.body.classList.add('modal-open');
   }
 }
+window.openModal = openModal;
 
 window.closeModals = function() {
   document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
@@ -1630,11 +1631,9 @@ function updateAuthUI() {
     if (navUserText) navUserText.textContent = displayName;
     if (btnAuthOpen) {
       btnAuthOpen.title = `Signed in as ${state.user.email}`;
-      btnAuthOpen.onclick = () => openLibraryModal();
     }
     if (btnLibraryOpen) {
       btnLibraryOpen.style.display = 'inline-flex';
-      btnLibraryOpen.onclick = () => openLibraryModal();
     }
     if (mobileUserText) mobileUserText.textContent = `${displayName} (Sign Out)`;
     if (mobileLibraryItem) mobileLibraryItem.style.display = 'block';
@@ -1642,7 +1641,6 @@ function updateAuthUI() {
     if (navUserText) navUserText.textContent = 'Sign In';
     if (btnAuthOpen) {
       btnAuthOpen.title = 'Account / Sign In';
-      btnAuthOpen.onclick = () => openAuthModal('login');
     }
     if (btnLibraryOpen) {
       btnLibraryOpen.style.display = 'none';
@@ -1651,6 +1649,14 @@ function updateAuthUI() {
     if (mobileLibraryItem) mobileLibraryItem.style.display = 'none';
   }
 }
+
+window.handleNavAuthClick = function() {
+  if (state.user) {
+    openLibraryModal();
+  } else {
+    openAuthModal('login');
+  }
+};
 
 window.handleMobileAuthClick = function() {
   closeModals();
@@ -1704,133 +1710,193 @@ window.switchAuthTab = function(tab) {
   }
 
   if (tab === 'register') {
-    tabLogin.classList.remove('active');
-    tabLogin.style.background = 'transparent';
-    tabLogin.style.color = 'var(--text-secondary)';
-    tabReg.classList.add('active');
-    tabReg.style.background = 'var(--bg-card)';
-    tabReg.style.color = 'var(--text-primary)';
-    formLogin.style.display = 'none';
-    formReg.style.display = 'block';
+    tabLogin?.classList.remove('active');
+    if (tabLogin) {
+      tabLogin.style.background = 'transparent';
+      tabLogin.style.color = 'var(--text-secondary)';
+    }
+    tabReg?.classList.add('active');
+    if (tabReg) {
+      tabReg.style.background = 'var(--bg-card)';
+      tabReg.style.color = 'var(--text-primary)';
+    }
+    if (formLogin) formLogin.style.display = 'none';
+    if (formReg) formReg.style.display = 'block';
   } else {
-    tabReg.classList.remove('active');
-    tabReg.style.background = 'transparent';
-    tabReg.style.color = 'var(--text-secondary)';
-    tabLogin.classList.add('active');
-    tabLogin.style.background = 'var(--bg-card)';
-    tabLogin.style.color = 'var(--text-primary)';
-    formReg.style.display = 'none';
-    formLogin.style.display = 'block';
+    tabReg?.classList.remove('active');
+    if (tabReg) {
+      tabReg.style.background = 'transparent';
+      tabReg.style.color = 'var(--text-secondary)';
+    }
+    tabLogin?.classList.add('active');
+    if (tabLogin) {
+      tabLogin.style.background = 'var(--bg-card)';
+      tabLogin.style.color = 'var(--text-primary)';
+    }
+    if (formReg) formReg.style.display = 'none';
+    if (formLogin) formLogin.style.display = 'block';
+  }
+};
+
+window.toggleAuthPassword = function(inputId, btnEl) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  const icon = btnEl ? btnEl.querySelector('i') : null;
+  if (icon) {
+    icon.className = isPass ? 'fas fa-eye-slash' : 'fas fa-eye';
+  }
+};
+
+let isAuthSubmitting = false;
+
+window.handleCustomerLogin = async function(e) {
+  if (e && typeof e.preventDefault === 'function') {
+    e.preventDefault();
+  }
+  if (isAuthSubmitting) return;
+
+  const emailEl = document.getElementById('customer-login-email');
+  const passEl = document.getElementById('customer-login-password');
+  const email = emailEl ? emailEl.value.trim() : '';
+  const password = passEl ? passEl.value : '';
+  const btn = document.getElementById('btn-customer-login-submit');
+  const errorEl = document.getElementById('auth-error-msg');
+
+  if (!email || !password) {
+    if (errorEl) {
+      errorEl.textContent = 'Please enter both email and password';
+      errorEl.style.display = 'block';
+    }
+    return;
+  }
+
+  isAuthSubmitting = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+  }
+  if (errorEl) errorEl.style.display = 'none';
+
+  try {
+    const payload = { email, password };
+    if (pendingSaveOrder) {
+      payload.order_id = pendingSaveOrder.order_id;
+      payload.download_token = pendingSaveOrder.download_token;
+    }
+
+    const res = await api('/api/auth/login', {
+      method: 'POST',
+      body: payload
+    });
+
+    state.user = res.user;
+    updateAuthUI();
+    closeModals();
+    showToast(`Welcome back, ${state.user.name || 'Student'}!`, 'success');
+
+    if (pendingSaveOrder) {
+      showToast('🎉 Your purchase has been saved to My Library!', 'success');
+      pendingSaveOrder = null;
+      const saveCard = document.getElementById('thankyou-save-account-card');
+      if (saveCard) saveCard.style.display = 'none';
+    }
+  } catch (err) {
+    if (errorEl) {
+      errorEl.textContent = err.message || 'Invalid email or password';
+      errorEl.style.display = 'block';
+    }
+  } finally {
+    isAuthSubmitting = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>Sign In</span> <i class="fas fa-sign-in-alt"></i>';
+    }
+  }
+};
+
+window.handleCustomerRegister = async function(e) {
+  if (e && typeof e.preventDefault === 'function') {
+    e.preventDefault();
+  }
+  if (isAuthSubmitting) return;
+
+  const nameEl = document.getElementById('customer-reg-name');
+  const emailEl = document.getElementById('customer-reg-email');
+  const passEl = document.getElementById('customer-reg-password');
+  const name = nameEl ? nameEl.value.trim() : '';
+  const email = emailEl ? emailEl.value.trim() : '';
+  const password = passEl ? passEl.value : '';
+  const btn = document.getElementById('btn-customer-reg-submit');
+  const errorEl = document.getElementById('auth-error-msg');
+
+  if (!name || !email || !password) {
+    if (errorEl) {
+      errorEl.textContent = 'Please fill out all fields';
+      errorEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (password.length < 6) {
+    if (errorEl) {
+      errorEl.textContent = 'Password must be at least 6 characters long';
+      errorEl.style.display = 'block';
+    }
+    return;
+  }
+
+  isAuthSubmitting = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+  }
+  if (errorEl) errorEl.style.display = 'none';
+
+  try {
+    const payload = { name, email, password };
+    if (pendingSaveOrder) {
+      payload.order_id = pendingSaveOrder.order_id;
+      payload.download_token = pendingSaveOrder.download_token;
+    }
+
+    const res = await api('/api/auth/register', {
+      method: 'POST',
+      body: payload
+    });
+
+    state.user = res.user;
+    updateAuthUI();
+    closeModals();
+    showToast(`Account created! Welcome, ${state.user.name}!`, 'success');
+
+    if (pendingSaveOrder) {
+      showToast('🎉 Your purchase has been saved to My Library!', 'success');
+      pendingSaveOrder = null;
+      const saveCard = document.getElementById('thankyou-save-account-card');
+      if (saveCard) saveCard.style.display = 'none';
+    }
+  } catch (err) {
+    if (errorEl) {
+      errorEl.textContent = err.message || 'Could not create account';
+      errorEl.style.display = 'block';
+    }
+  } finally {
+    isAuthSubmitting = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>Create Account</span> <i class="fas fa-user-plus"></i>';
+    }
   }
 };
 
 function initCustomerAuthListeners() {
-  document.getElementById('btn-auth-open')?.addEventListener('click', () => {
-    if (state.user) {
-      openLibraryModal();
-    } else {
-      openAuthModal('login');
-    }
-  });
+  document.getElementById('btn-auth-open')?.addEventListener('click', window.handleNavAuthClick);
+  document.getElementById('btn-library-open')?.addEventListener('click', window.openLibraryModal);
 
-  document.getElementById('btn-library-open')?.addEventListener('click', openLibraryModal);
-
-  // Customer Login Form Submit
-  document.getElementById('customer-login-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('customer-login-email').value.trim();
-    const password = document.getElementById('customer-login-password').value;
-    const btn = document.getElementById('btn-customer-login-submit');
-    const errorEl = document.getElementById('auth-error-msg');
-
-    if (!email || !password) return;
-
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
-    if (errorEl) errorEl.style.display = 'none';
-
-    try {
-      const payload = { email, password };
-      if (pendingSaveOrder) {
-        payload.order_id = pendingSaveOrder.order_id;
-        payload.download_token = pendingSaveOrder.download_token;
-      }
-
-      const res = await api('/api/auth/login', {
-        method: 'POST',
-        body: payload
-      });
-
-      state.user = res.user;
-      updateAuthUI();
-      closeModals();
-      showToast(`Welcome back, ${state.user.name || 'Student'}!`, 'success');
-
-      if (pendingSaveOrder) {
-        showToast('🎉 Your purchase has been saved to My Library!', 'success');
-        pendingSaveOrder = null;
-        const saveCard = document.getElementById('thankyou-save-account-card');
-        if (saveCard) saveCard.style.display = 'none';
-      }
-    } catch (err) {
-      if (errorEl) {
-        errorEl.textContent = err.message || 'Invalid email or password';
-        errorEl.style.display = 'block';
-      }
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<span>Sign In</span> <i class="fas fa-sign-in-alt"></i>';
-    }
-  });
-
-  // Customer Register Form Submit
-  document.getElementById('customer-register-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = document.getElementById('customer-reg-name').value.trim();
-    const email = document.getElementById('customer-reg-email').value.trim();
-    const password = document.getElementById('customer-reg-password').value;
-    const btn = document.getElementById('btn-customer-reg-submit');
-    const errorEl = document.getElementById('auth-error-msg');
-
-    if (!name || !email || !password) return;
-
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
-    if (errorEl) errorEl.style.display = 'none';
-
-    try {
-      const payload = { name, email, password };
-      if (pendingSaveOrder) {
-        payload.order_id = pendingSaveOrder.order_id;
-        payload.download_token = pendingSaveOrder.download_token;
-      }
-
-      const res = await api('/api/auth/register', {
-        method: 'POST',
-        body: payload
-      });
-
-      state.user = res.user;
-      updateAuthUI();
-      closeModals();
-      showToast(`Account created! Welcome, ${state.user.name}!`, 'success');
-
-      if (pendingSaveOrder) {
-        showToast('🎉 Your purchase has been saved to My Library!', 'success');
-        pendingSaveOrder = null;
-        const saveCard = document.getElementById('thankyou-save-account-card');
-        if (saveCard) saveCard.style.display = 'none';
-      }
-    } catch (err) {
-      if (errorEl) {
-        errorEl.textContent = err.message || 'Could not create account';
-        errorEl.style.display = 'block';
-      }
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<span>Create Account</span> <i class="fas fa-user-plus"></i>';
-    }
-  });
+  document.getElementById('customer-login-form')?.addEventListener('submit', window.handleCustomerLogin);
+  document.getElementById('customer-register-form')?.addEventListener('submit', window.handleCustomerRegister);
 }
 
 window.handleCustomerLogout = async function() {

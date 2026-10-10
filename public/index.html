@@ -10,7 +10,7 @@
     <meta property="og:description" content="Premium programming eBooks with practical examples, clear explanations, and instant digital access.">
     <meta property="og:type" content="website">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" href="css/style.css?v=4.2">
+    <link rel="stylesheet" href="css/style.css?v=4.6">
 </head>
 <body>
     <!-- Sticky Navigation Header -->
@@ -38,10 +38,10 @@
                     <i class="fab fa-whatsapp"></i>
                     <span class="whatsapp-btn-text">WhatsApp Help</span>
                 </a>
-                <button class="btn btn-outline btn-sm nav-user-btn" id="btn-auth-open" title="Account / Sign In">
+                <button type="button" class="btn btn-outline btn-sm nav-user-btn" id="btn-auth-open" onclick="handleNavAuthClick()" title="Account / Sign In">
                     <i class="fas fa-user"></i> <span id="nav-user-text">Sign In</span>
                 </button>
-                <button class="btn btn-primary btn-sm nav-library-btn" id="btn-library-open" style="display: none;" title="My Purchased eBooks">
+                <button type="button" class="btn btn-primary btn-sm nav-library-btn" id="btn-library-open" onclick="openLibraryModal()" style="display: none;" title="My Purchased eBooks">
                     <i class="fas fa-book-reader"></i> <span>My Library</span>
                 </button>
                 <button class="icon-btn search-btn" id="btn-search-open" aria-label="Search eBooks" title="Search">
@@ -786,14 +786,19 @@
             <div id="auth-error-msg" class="auth-error-alert" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; padding: 0.65rem 0.85rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem;"></div>
 
             <!-- Login Form -->
-            <form id="customer-login-form" style="display: block;">
+            <form id="customer-login-form" onsubmit="handleCustomerLogin(event)" style="display: block;">
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label for="customer-login-email" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Email Address</label>
                     <input type="email" id="customer-login-email" class="form-control" placeholder="name@example.com" required autocomplete="username">
                 </div>
                 <div class="form-group" style="margin-bottom: 1.25rem;">
                     <label for="customer-login-password" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Password</label>
-                    <input type="password" id="customer-login-password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+                    <div style="position: relative; display: flex; align-items: center;">
+                        <input type="password" id="customer-login-password" class="form-control" placeholder="••••••••" required autocomplete="current-password" style="padding-right: 2.75rem;">
+                        <button type="button" class="btn-password-toggle" onclick="toggleAuthPassword('customer-login-password', this)" style="position: absolute; right: 0.5rem; background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.4rem 0.6rem; font-size: 0.95rem;" title="Toggle Password Visibility" aria-label="Toggle Password Visibility">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" id="btn-customer-login-submit" style="width: 100%;">
                     <span>Sign In</span> <i class="fas fa-sign-in-alt"></i>
@@ -801,7 +806,7 @@
             </form>
 
             <!-- Register Form -->
-            <form id="customer-register-form" style="display: none;">
+            <form id="customer-register-form" onsubmit="handleCustomerRegister(event)" style="display: none;">
                 <div class="form-group" style="margin-bottom: 0.85rem;">
                     <label for="customer-reg-name" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Full Name</label>
                     <input type="text" id="customer-reg-name" class="form-control" placeholder="John Doe" required autocomplete="name">
@@ -812,7 +817,12 @@
                 </div>
                 <div class="form-group" style="margin-bottom: 1.25rem;">
                     <label for="customer-reg-password" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Create Password (min 6 characters)</label>
-                    <input type="password" id="customer-reg-password" class="form-control" placeholder="••••••••" required minlength="6" autocomplete="new-password">
+                    <div style="position: relative; display: flex; align-items: center;">
+                        <input type="password" id="customer-reg-password" class="form-control" placeholder="••••••••" required minlength="6" autocomplete="new-password" style="padding-right: 2.75rem;">
+                        <button type="button" class="btn-password-toggle" onclick="toggleAuthPassword('customer-reg-password', this)" style="position: absolute; right: 0.5rem; background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 0.4rem 0.6rem; font-size: 0.95rem;" title="Toggle Password Visibility" aria-label="Toggle Password Visibility">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary btn-block" id="btn-customer-reg-submit" style="width: 100%;">
                     <span>Create Account</span> <i class="fas fa-user-plus"></i>
@@ -901,7 +911,7 @@
     <div id="toast-container"></div>
 
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script src="js/hero.js?v=4.3"></script>
-    <script src="js/app.js?v=4.3"></script>
+    <script src="js/hero.js?v=4.6"></script>
+    <script src="js/app.js?v=4.6"></script>
 </body>
 </html>
