@@ -175,6 +175,38 @@ a {
   text-align: center;
 }
 
+.otp-sent-info {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 1.1rem;
+  font-size: 0.84rem;
+  color: #93c5fd;
+}
+
+#login-otp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.35rem;
+  letter-spacing: 6px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--admin-text);
+  background-color: var(--admin-bg);
+}
+
+body.admin-light .otp-sent-info {
+  background: rgba(59, 130, 246, 0.08);
+  color: #1e40af;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+body.admin-light #login-otp {
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+
 /* Dashboard Layout */
 #admin-dashboard {
   display: flex;

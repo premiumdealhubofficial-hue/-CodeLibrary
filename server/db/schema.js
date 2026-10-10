@@ -170,6 +170,15 @@ function getDb() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS admin_email_otps (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      otp_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      attempts INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_books_slug ON books(slug);
     CREATE INDEX IF NOT EXISTS idx_books_category ON books(category);
     CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
@@ -177,6 +186,7 @@ function getDb() {
     CREATE INDEX IF NOT EXISTS idx_coupons_code ON coupons(code);
     CREATE INDEX IF NOT EXISTS idx_coupon_usages_coupon ON coupon_usages(coupon_id);
     CREATE INDEX IF NOT EXISTS idx_coupon_usages_customer ON coupon_usages(customer_id);
+    CREATE INDEX IF NOT EXISTS idx_admin_email_otps_email ON admin_email_otps(email);
   `);
 
   // Default Settings Seed for Contact & Social Media

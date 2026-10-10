@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const OTPAuth = require('otpauth');
@@ -10,8 +11,9 @@ const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db/schema');
 const config = require('../utils/config');
 const { authenticateAdmin } = require('../middleware/auth');
-const { adminLoginLimiter } = require('../middleware/rateLimiter');
+const { adminLoginLimiter, otpSendLimiter, otpVerifyLimiter } = require('../middleware/rateLimiter');
 const { createDatabaseBackup, listBackups, BACKUP_DIR } = require('../utils/backup');
+const { sendAdminLoginOtp, isSmtpConfigured } = require('../utils/email');
 
 // Helper to save base64 cover image to public/uploads/covers/
 function saveBase64CoverImage(dataUrl, bookId) {
@@ -54,9 +56,203 @@ function logAudit(db, admin_id, action, entity, entity_id, details, ip) {
   }
 }
 
-// Admin Login
+// Admin Send Login OTP (Gmail SMTP)
+router.post('/send-otp', otpSendLimiter, async (req, res) => {
+  const { email } = req.body;
+  const loginEmail = String(email || '').trim().toLowerCase();
+
+  if (!loginEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail)) {
+    return res.status(400).json({ error: 'Please enter a valid admin email address' });
+  }
+
+  const db = getDb();
+  try {
+    const configuredAdminEmail = (config.ADMIN_EMAIL || 'admin@codelibrary.in').trim().toLowerCase();
+    
+    // Check if email matches configured admin email or an existing admin in DB
+    let admin = db.prepare('SELECT id, email, username FROM admins WHERE LOWER(email) = ?').get(loginEmail);
+    if (!admin && loginEmail === configuredAdminEmail) {
+      const { syncAdminAccount } = require('../db/schema');
+      syncAdminAccount(db);
+      admin = db.prepare('SELECT id, email, username FROM admins WHERE LOWER(email) = ?').get(loginEmail);
+    }
+
+    // Generic success response to avoid exposing registered email addresses to unauthenticated callers
+    const genericSuccess = {
+      success: true,
+      message: 'If the email address is registered as an admin, a 6-digit verification code has been sent.'
+    };
+
+    if (!admin || loginEmail !== configuredAdminEmail) {
+      // Return generic message without generating OTP
+      return res.json(genericSuccess);
+    }
+
+    // Verify SMTP service configuration
+    if (!isSmtpConfigured() && process.env.NODE_ENV !== 'test') {
+      return res.status(503).json({
+        error: 'SMTP email service is not configured on the server. Please configure SMTP_USER and SMTP_PASS in Render Environment Variables.',
+        setup_required: true
+      });
+    }
+
+    // Generate cryptographically secure 6-digit OTP
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = crypto.createHash('sha256').update(otp + config.JWT_SECRET).digest('hex');
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes expiration
+
+    // Invalidate any previous OTP for this email
+    db.prepare('DELETE FROM admin_email_otps WHERE LOWER(email) = ?').run(loginEmail);
+
+    // Store secure hashed OTP in database
+    db.prepare('INSERT INTO admin_email_otps (id, email, otp_hash, expires_at, attempts) VALUES (?, ?, ?, ?, 0)')
+      .run(uuidv4(), loginEmail, otpHash, expiresAt);
+
+    // Send email via Nodemailer
+    await sendAdminLoginOtp(admin.email, otp);
+
+    logAudit(db, admin.id, 'OTP_SENT', 'ADMIN', admin.id, { email: admin.email }, req.ip);
+
+    return res.json({
+      success: true,
+      message: `A 6-digit verification code has been sent to your email. It will expire in 5 minutes.`
+    });
+  } catch (err) {
+    console.error('Send OTP Error:', err);
+    if (err.code === 'SMTP_NOT_CONFIGURED') {
+      return res.status(503).json({
+        error: 'SMTP email service is not configured on the server. Please configure SMTP_USER and SMTP_PASS in Render Environment Variables.',
+        setup_required: true
+      });
+    }
+    return res.status(500).json({ error: 'Failed to send verification code. Please verify server SMTP configuration.' });
+  }
+});
+
+// Admin Verify Login OTP & Issue Authenticated Session
+router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
+  const { email, otp, totp_code } = req.body;
+  const loginEmail = String(email || '').trim().toLowerCase();
+  const rawOtp = String(otp || '').trim();
+
+  if (!loginEmail || !rawOtp) {
+    return res.status(400).json({ error: 'Please enter both your admin email and 6-digit verification code' });
+  }
+
+  if (!/^\d{6}$/.test(rawOtp)) {
+    return res.status(400).json({ error: 'Verification code must be a 6-digit number' });
+  }
+
+  const db = getDb();
+  try {
+    const configuredAdminEmail = (config.ADMIN_EMAIL || 'admin@codelibrary.in').trim().toLowerCase();
+    let admin = db.prepare('SELECT * FROM admins WHERE LOWER(email) = ?').get(loginEmail);
+    if (!admin && loginEmail === configuredAdminEmail) {
+      const { syncAdminAccount } = require('../db/schema');
+      syncAdminAccount(db);
+      admin = db.prepare('SELECT * FROM admins WHERE LOWER(email) = ?').get(loginEmail);
+    }
+
+    if (!admin || loginEmail !== configuredAdminEmail) {
+      return res.status(401).json({ error: 'Invalid or expired verification code' });
+    }
+
+    // Retrieve active OTP record
+    const otpRecord = db.prepare('SELECT * FROM admin_email_otps WHERE LOWER(email) = ?').get(loginEmail);
+
+    if (!otpRecord) {
+      return res.status(401).json({ error: 'No verification code found or code has expired. Please request a new code.' });
+    }
+
+    // Check expiration
+    if (Date.now() > otpRecord.expires_at) {
+      db.prepare('DELETE FROM admin_email_otps WHERE id = ?').run(otpRecord.id);
+      return res.status(401).json({ error: 'Verification code has expired. Please request a new code.' });
+    }
+
+    // Check max attempts (5 attempts limit)
+    if (otpRecord.attempts >= 5) {
+      db.prepare('DELETE FROM admin_email_otps WHERE id = ?').run(otpRecord.id);
+      return res.status(401).json({ error: 'Too many incorrect attempts. For security, please request a new verification code.' });
+    }
+
+    // Increment attempts counter
+    db.prepare('UPDATE admin_email_otps SET attempts = attempts + 1 WHERE id = ?').run(otpRecord.id);
+
+    // Secure timing-safe hash comparison
+    const submittedHash = crypto.createHash('sha256').update(rawOtp + config.JWT_SECRET).digest('hex');
+    const hashA = Buffer.from(submittedHash, 'utf8');
+    const hashB = Buffer.from(otpRecord.otp_hash, 'utf8');
+    const isOtpValid = hashA.length === hashB.length && crypto.timingSafeEqual(hashA, hashB);
+
+    if (!isOtpValid) {
+      const remaining = Math.max(0, 4 - otpRecord.attempts);
+      return res.status(401).json({ 
+        error: remaining > 0 
+          ? `Invalid verification code. ${remaining} attempt(s) remaining.` 
+          : 'Invalid verification code. Please request a new code.' 
+      });
+    }
+
+    // Invalidate OTP immediately upon successful verification to prevent reuse
+    db.prepare('DELETE FROM admin_email_otps WHERE id = ?').run(otpRecord.id);
+
+    // If 2FA (TOTP) is enabled, verify the TOTP code
+    if (admin.totp_enabled) {
+      if (!totp_code) {
+        return res.status(401).json({ error: 'Two-factor authentication code required', require_2fa: true });
+      }
+      
+      const totp = new OTPAuth.TOTP({
+        issuer: 'CodeLibrary',
+        label: admin.email,
+        secret: OTPAuth.Secret.fromBase32(admin.totp_secret)
+      });
+      
+      const delta = totp.validate({ token: String(totp_code).trim(), window: 1 });
+      if (delta === null) {
+        return res.status(401).json({ error: 'Invalid 2FA code', require_2fa: true });
+      }
+    }
+
+    // Create session JWT token
+    const token = jwt.sign(
+      { id: admin.id, email: admin.email, username: admin.username, role: 'admin' }, 
+      config.JWT_SECRET, 
+      { expiresIn: '12h' }
+    );
+    
+    res.cookie('admin_token', token, { 
+      httpOnly: true, 
+      secure: process.env.NODE_ENV === 'production', 
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 12 * 3600000 
+    });
+    
+    logAudit(db, admin.id, 'LOGIN_OTP_SUCCESS', 'ADMIN', admin.id, { email: admin.email }, req.ip);
+    
+    return res.json({ 
+      success: true, 
+      token,
+      admin: { id: admin.id, email: admin.email, username: admin.username, totp_enabled: !!admin.totp_enabled } 
+    });
+  } catch (err) {
+    console.error('Verify OTP Error:', err);
+    return res.status(500).json({ error: 'Internal server error during verification' });
+  }
+});
+
+// Admin Login (Fallback & Compatibility Endpoint)
 router.post('/login', adminLoginLimiter, async (req, res) => {
-  const { username, email, password, totp_code } = req.body;
+  const { username, email, password, otp, totp_code } = req.body;
+  
+  // If OTP is provided, route directly to OTP verification
+  if (otp) {
+    req.body.email = email || username;
+    return router.handle(req, res);
+  }
+
   const loginIdentifier = (email || username || '').trim();
   
   if (!loginIdentifier || !password) {
