@@ -5,14 +5,33 @@ const config = require('./config');
 /**
  * Resolves verified or default sender address for Resend.
  * Default: 'CodeLibrary Security <onboarding@resend.dev>' (works out of the box on free tier)
- * Custom verified domain: e.g. 'CodeLibrary Security <security@codelibrary.in>'
+ * Custom verified domain: e.g. 'CodeLibrary Security <security@yourdomain.com>'
  */
 function resolveResendFromAddress() {
-  let from = config.RESEND_FROM || config.SMTP_FROM || '';
-  if (!from || from.includes('smtp.gmail.com') || from.includes('no-reply@codelibrary.in')) {
-    // If no custom domain sender is set, use Resend's default verified sandbox sender
+  // If RESEND_FROM is explicitly configured
+  let from = (config.RESEND_FROM || '').trim();
+  
+  // If no explicit RESEND_FROM, check SMTP_FROM
+  if (!from) {
+    from = (config.SMTP_FROM || '').trim();
+  }
+
+  // Public consumer email domains or placeholder unverified domains cannot be used as Resend senders
+  const isPublicOrPlaceholder = !from ||
+    /@gmail\.com/i.test(from) ||
+    /@googlemail\.com/i.test(from) ||
+    /@yahoo\.com/i.test(from) ||
+    /@outlook\.com/i.test(from) ||
+    /@hotmail\.com/i.test(from) ||
+    /@icloud\.com/i.test(from) ||
+    /@codelibrary\.in/i.test(from) ||
+    from.includes('smtp.gmail.com');
+
+  if (isPublicOrPlaceholder && !from.includes('@resend.dev')) {
+    // Automatically use Resend's default verified testing sender
     return 'CodeLibrary Security <onboarding@resend.dev>';
   }
+
   if (!from.includes('<')) {
     return `CodeLibrary Security <${from}>`;
   }
@@ -161,10 +180,15 @@ async function testSmtpConnection() {
     const keyPreview = config.RESEND_API_KEY.startsWith('re_') 
       ? `re_${config.RESEND_API_KEY.substring(3, 7)}...` 
       : 're_***';
+    const sender = resolveResendFromAddress();
+    const isSandbox = sender.includes('onboarding@resend.dev');
     return {
       configured: true,
       provider: 'Resend HTTP API (Port 443 HTTPS - Cloud Unrestricted)',
-      sender: resolveResendFromAddress(),
+      sender: sender,
+      mode: isSandbox 
+        ? 'Sandbox Testing (Delivers to your registered Resend account email)' 
+        : 'Production Verified Domain',
       apiKeyConfigured: true,
       apiKeyPrefix: keyPreview,
       status: 'Active & Ready for OTP Delivery'
