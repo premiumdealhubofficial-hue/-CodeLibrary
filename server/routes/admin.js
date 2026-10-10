@@ -111,18 +111,21 @@ router.post('/login', adminLoginLimiter, async (req, res) => {
 
   const db = getDb();
   try {
+    // Synchronize admin account credentials from environment variables
+    const { syncAdminAccount } = require('../db/schema');
+    syncAdminAccount(db);
+
     const configuredUsername = (config.ADMIN_USERNAME || 'admin').trim().toLowerCase();
     const configuredEmail = (config.ADMIN_EMAIL || 'admin@codelibrary.in').trim().toLowerCase();
+    const configuredPassword = (config.ADMIN_PASSWORD || '').trim();
     const lowerIdentifier = loginIdentifier.toLowerCase();
 
     // Query admin by username or email (case-insensitive)
     let admin = db.prepare('SELECT * FROM admins WHERE LOWER(username) = ? OR LOWER(email) = ?').get(lowerIdentifier, lowerIdentifier);
 
-    // If not found in DB but matches configured env credentials, sync from environment
+    // If still not found by exact identifier, check if identifier matches configured username or email
     if (!admin && (lowerIdentifier === configuredUsername || lowerIdentifier === configuredEmail)) {
-      const { syncAdminAccount } = require('../db/schema');
-      syncAdminAccount(db);
-      admin = db.prepare('SELECT * FROM admins WHERE LOWER(username) = ? OR LOWER(email) = ?').get(lowerIdentifier, lowerIdentifier);
+      admin = db.prepare('SELECT * FROM admins LIMIT 1').get();
     }
 
     if (!admin) {
@@ -139,12 +142,15 @@ router.post('/login', adminLoginLimiter, async (req, res) => {
     let match = false;
     if (admin.password_hash) {
       match = await bcrypt.compare(rawPassword, admin.password_hash);
+      if (!match && rawPassword.trim() !== rawPassword) {
+        match = await bcrypt.compare(rawPassword.trim(), admin.password_hash);
+      }
     }
 
     // Direct match against environment variable if changed in Render after startup
-    if (!match && config.ADMIN_PASSWORD && rawPassword === config.ADMIN_PASSWORD && (lowerIdentifier === configuredUsername || lowerIdentifier === configuredEmail)) {
+    if (!match && configuredPassword && (rawPassword === configuredPassword || rawPassword.trim() === configuredPassword)) {
       match = true;
-      const newHash = bcrypt.hashSync(rawPassword, 10);
+      const newHash = bcrypt.hashSync(configuredPassword, 10);
       db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(newHash, admin.id);
     }
 

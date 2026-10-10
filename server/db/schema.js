@@ -286,26 +286,35 @@ function syncAdminAccount(db) {
     const bcrypt = require('bcryptjs');
     const { v4: uuidv4 } = require('uuid');
 
-    const adminEmail = config.ADMIN_EMAIL || 'admin@codelibrary.in';
-    const adminUsername = config.ADMIN_USERNAME || 'admin';
-    const adminPassword = config.ADMIN_PASSWORD;
+    const adminEmail = (config.ADMIN_EMAIL || 'admin@codelibrary.in').trim().toLowerCase();
+    const adminUsername = (config.ADMIN_USERNAME || 'admin').trim();
+    const adminPassword = (config.ADMIN_PASSWORD || '').trim();
 
     if (!adminPassword) return;
 
-    const existingAdmin = db.prepare('SELECT id, email, username, password_hash, totp_enabled FROM admins WHERE email = ? OR username = ?').get(adminEmail, adminUsername);
+    const allAdmins = db.prepare('SELECT id, email, username, password_hash, totp_enabled FROM admins').all();
 
-    if (!existingAdmin) {
+    if (allAdmins.length === 0) {
       const hashedPassword = bcrypt.hashSync(adminPassword, 10);
       db.prepare('INSERT INTO admins (id, email, username, password_hash) VALUES (?, ?, ?, ?)').run(
         uuidv4(), adminEmail, adminUsername, hashedPassword
       );
     } else {
-      // Synchronize email, username, and password hash with environment variables if changed, preserving 2FA configuration
-      const isMatch = bcrypt.compareSync(adminPassword, existingAdmin.password_hash);
-      if (existingAdmin.email !== adminEmail || existingAdmin.username !== adminUsername || !isMatch) {
-        const newHash = !isMatch ? bcrypt.hashSync(adminPassword, 10) : existingAdmin.password_hash;
+      // Find matching admin by email or username, or pick primary admin
+      let targetAdmin = allAdmins.find(a => 
+        (a.email && a.email.toLowerCase() === adminEmail) || 
+        (a.username && a.username.toLowerCase() === adminUsername.toLowerCase())
+      );
+
+      if (!targetAdmin) {
+        targetAdmin = allAdmins[0];
+      }
+
+      const isMatch = targetAdmin.password_hash ? bcrypt.compareSync(adminPassword, targetAdmin.password_hash) : false;
+      if (!isMatch || targetAdmin.email.toLowerCase() !== adminEmail || targetAdmin.username.toLowerCase() !== adminUsername.toLowerCase()) {
+        const newHash = !isMatch ? bcrypt.hashSync(adminPassword, 10) : targetAdmin.password_hash;
         db.prepare('UPDATE admins SET email = ?, username = ?, password_hash = ? WHERE id = ?').run(
-          adminEmail, adminUsername, newHash, existingAdmin.id
+          adminEmail, adminUsername, newHash, targetAdmin.id
         );
       }
     }
