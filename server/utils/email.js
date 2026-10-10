@@ -13,12 +13,13 @@ function createTransporters() {
   const isGmail = (config.SMTP_HOST || 'smtp.gmail.com').toLowerCase().includes('gmail.com');
   const transports = [];
 
-  // Strategy 1: For Gmail, service: 'gmail' is the most battle-tested preset
+  // Strategy 1: For Gmail, service: 'gmail' with IPv4 forced
   if (isGmail) {
     transports.push({
-      name: 'Gmail Service Preset',
+      name: 'Gmail Service Preset (IPv4)',
       transporter: nodemailer.createTransport({
         service: 'gmail',
+        family: 4,
         auth: {
           user: config.SMTP_USER,
           pass: config.SMTP_PASS
@@ -30,13 +31,14 @@ function createTransporters() {
     });
   }
 
-  // Strategy 2: Direct Host/Port Config (e.g. port 465 SSL)
+  // Strategy 2: Direct Host/Port Config (e.g. port 465 SSL, IPv4)
   transports.push({
     name: `Direct SMTP (${config.SMTP_HOST || 'smtp.gmail.com'}:${port})`,
     transporter: nodemailer.createTransport({
       host: config.SMTP_HOST || 'smtp.gmail.com',
       port: port,
       secure: port === 465,
+      family: 4,
       auth: {
         user: config.SMTP_USER,
         pass: config.SMTP_PASS
@@ -50,28 +52,27 @@ function createTransporters() {
     })
   });
 
-  // Strategy 3: Port 587 STARTTLS Fallback if port 465 is blocked by host/firewall
-  if (port === 465) {
-    transports.push({
-      name: `Fallback SMTP (${config.SMTP_HOST || 'smtp.gmail.com'}:587 STARTTLS)`,
-      transporter: nodemailer.createTransport({
-        host: config.SMTP_HOST || 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        requireTLS: true,
-        auth: {
-          user: config.SMTP_USER,
-          pass: config.SMTP_PASS
-        },
-        connectionTimeout: 8000,
-        greetingTimeout: 8000,
-        socketTimeout: 10000,
-        tls: {
-          rejectUnauthorized: false
-        }
-      })
-    });
-  }
+  // Strategy 3: Port 587 STARTTLS Fallback (IPv4)
+  transports.push({
+    name: `Fallback SMTP (${config.SMTP_HOST || 'smtp.gmail.com'}:587 STARTTLS)`,
+    transporter: nodemailer.createTransport({
+      host: config.SMTP_HOST || 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      family: 4,
+      auth: {
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASS
+      },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000,
+      tls: {
+        rejectUnauthorized: false
+      }
+    })
+  });
 
   return transports;
 }
