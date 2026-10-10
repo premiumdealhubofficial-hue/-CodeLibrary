@@ -172,8 +172,22 @@ a {
 #login-error {
   margin-top: 1rem;
   font-size: 0.85rem;
-  text-align: center;
+  text-align: left;
+  line-height: 1.45;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  display: none;
 }
+
+body.admin-light #login-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
 
 .otp-sent-info {
   background: rgba(59, 130, 246, 0.08);

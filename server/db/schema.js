@@ -300,10 +300,10 @@ function syncAdminAccount(db) {
         uuidv4(), adminEmail, adminUsername, hashedPassword
       );
     } else {
-      // Synchronize password hash with environment variable if changed, preserving 2FA configuration
+      // Synchronize email, username, and password hash with environment variables if changed, preserving 2FA configuration
       const isMatch = bcrypt.compareSync(adminPassword, existingAdmin.password_hash);
-      if (!isMatch) {
-        const newHash = bcrypt.hashSync(adminPassword, 10);
+      if (existingAdmin.email !== adminEmail || existingAdmin.username !== adminUsername || !isMatch) {
+        const newHash = !isMatch ? bcrypt.hashSync(adminPassword, 10) : existingAdmin.password_hash;
         db.prepare('UPDATE admins SET email = ?, username = ?, password_hash = ? WHERE id = ?').run(
           adminEmail, adminUsername, newHash, existingAdmin.id
         );

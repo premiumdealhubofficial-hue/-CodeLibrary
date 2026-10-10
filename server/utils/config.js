@@ -62,6 +62,15 @@ function resolveRazorpayCredentials() {
 
 const rzpCreds = resolveRazorpayCredentials();
 
+function sanitizeSmtpPass(val) {
+  if (!val || typeof val !== 'string') return '';
+  let clean = sanitizeEnv(val);
+  if (/^[a-zA-Z0-9]{4}\s+[a-zA-Z0-9]{4}\s+[a-zA-Z0-9]{4}\s+[a-zA-Z0-9]{4}$/.test(clean.trim())) {
+    clean = clean.replace(/\s+/g, '');
+  }
+  return clean;
+}
+
 module.exports = {
   PORT: process.env.PORT || 3000,
   NODE_ENV: sanitizeEnv(process.env.NODE_ENV) || 'development',
@@ -81,7 +90,7 @@ module.exports = {
   SMTP_PORT: parseInt(process.env.SMTP_PORT, 10) || 465,
   SMTP_SECURE: process.env.SMTP_SECURE !== undefined ? process.env.SMTP_SECURE === 'true' : true,
   SMTP_USER: sanitizeEnv(process.env.SMTP_USER) || '',
-  SMTP_PASS: sanitizeEnv(process.env.SMTP_PASS) || '',
+  SMTP_PASS: sanitizeSmtpPass(process.env.SMTP_PASS),
   SMTP_FROM: sanitizeEnv(process.env.SMTP_FROM) || (sanitizeEnv(process.env.SMTP_USER) ? `CodeLibrary <${sanitizeEnv(process.env.SMTP_USER)}>` : 'CodeLibrary Security <no-reply@codelibrary.in>'),
   BACKUP_DIR: sanitizeEnv(process.env.BACKUP_DIR) || 'backups',
   BACKUP_RETENTION_COUNT: parseInt(process.env.BACKUP_RETENTION_COUNT, 10) || 30

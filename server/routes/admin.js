@@ -125,7 +125,8 @@ router.post('/send-otp', otpSendLimiter, async (req, res) => {
         setup_required: true
       });
     }
-    return res.status(500).json({ error: 'Failed to send verification code. Please verify server SMTP configuration.' });
+    const safeError = err.message || 'Failed to deliver OTP verification email. Please verify server SMTP configuration.';
+    return res.status(500).json({ error: safeError });
   }
 });
 

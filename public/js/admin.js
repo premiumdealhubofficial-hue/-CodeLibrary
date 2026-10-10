@@ -54,10 +54,14 @@ const escapeHtml = (str) => {
     .replace(/'/g, '&#039;');
 };
 
-// API Wrapper with Dual Cookie & Bearer Token Authentication
+// API Wrapper with Dual Cookie & Bearer Token Authentication + Timeout
 const adminApi = async (path, options = {}) => {
   const token = localStorage.getItem('admin_token');
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s client timeout
+
   const defaultOptions = {
+    signal: controller.signal,
     headers: { 
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -74,6 +78,7 @@ const adminApi = async (path, options = {}) => {
 
   try {
     const response = await fetch(path, merged);
+    clearTimeout(timeoutId);
     const data = await response.json().catch(() => ({}));
 
     if (response.status === 401) {
@@ -94,10 +99,27 @@ const adminApi = async (path, options = {}) => {
     }
     return data;
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out. The server or email service took too long to respond.');
+    }
     if (path !== '/api/admin/me') {
       console.error('Admin API Error:', error);
     }
     throw error;
+  }
+};
+
+// Helper to render login errors clearly
+const renderLoginError = (msg) => {
+  const errorEl = document.getElementById('login-error');
+  if (!errorEl) return;
+  if (!msg) {
+    errorEl.innerHTML = '';
+    errorEl.style.display = 'none';
+  } else {
+    errorEl.innerHTML = `<i class="fas fa-exclamation-triangle" style="margin-right: 6px;"></i><span>${escapeHtml(msg)}</span>`;
+    errorEl.style.display = 'block';
   }
 };
 
@@ -114,6 +136,8 @@ const checkAdminAuth = async () => {
 
 let otpTimerInterval = null;
 let resendTimerInterval = null;
+let isSendingOtp = false;
+let isVerifyingOtp = false;
 
 const stopOtpTimers = () => {
   if (otpTimerInterval) { clearInterval(otpTimerInterval); otpTimerInterval = null; }
@@ -141,8 +165,7 @@ const startOtpTimers = () => {
     if (expirySeconds <= 0) {
       stopOtpTimers();
       if (timerEl) timerEl.innerText = 'Expired';
-      const errEl = document.getElementById('login-error');
-      if (errEl) errEl.innerText = 'Verification code has expired. Please request a new code.';
+      renderLoginError('Verification code has expired. Please request a new code.');
     } else {
       updateExpiryDisplay();
     }
@@ -173,22 +196,24 @@ const startOtpTimers = () => {
 
 const handleSendOtp = async (e) => {
   if (e) e.preventDefault();
+  if (isSendingOtp) return; // Prevent duplicate concurrent requests
+
   const emailInput = document.getElementById('login-email');
   const email = (emailInput?.value || '').trim();
-  const errorEl = document.getElementById('login-error');
   const statusEl = document.getElementById('login-status');
   const btn = document.getElementById('btn-send-otp');
   
   if (!email) {
-    if (errorEl) errorEl.innerText = 'Please enter your admin email address.';
+    renderLoginError('Please enter your admin email address.');
     return;
   }
 
+  isSendingOtp = true;
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Sending Verification Code...</span>';
   }
-  if (errorEl) errorEl.innerText = '';
+  renderLoginError('');
   if (statusEl) { statusEl.innerText = ''; statusEl.style.display = 'none'; }
 
   try {
@@ -212,10 +237,11 @@ const handleSendOtp = async (e) => {
     startOtpTimers();
     showAdminToast(res.message || 'Verification code sent to your email', 'info');
   } catch (err) {
-    if (errorEl) {
-      errorEl.innerText = err.message || 'Failed to send verification code. Please check SMTP settings.';
-    }
+    const errorMsg = err.message || 'Failed to send verification code. Please check server SMTP settings.';
+    renderLoginError(errorMsg);
+    showAdminToast(errorMsg, 'error');
   } finally {
+    isSendingOtp = false;
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-paper-plane"></i> <span>Send Verification Code</span>';
@@ -224,23 +250,25 @@ const handleSendOtp = async (e) => {
 };
 
 const handleVerifyOtp = async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('login-email').value.trim();
-  const otp = document.getElementById('login-otp').value.trim();
+  if (e) e.preventDefault();
+  if (isVerifyingOtp) return;
+
+  const email = (document.getElementById('login-email')?.value || '').trim();
+  const otp = (document.getElementById('login-otp')?.value || '').trim();
   const totp = document.getElementById('login-totp')?.value?.trim() || '';
-  const errorEl = document.getElementById('login-error');
   const btn = document.getElementById('btn-verify-otp');
 
   if (!otp || otp.length !== 6) {
-    if (errorEl) errorEl.innerText = 'Please enter the complete 6-digit verification code.';
+    renderLoginError('Please enter the complete 6-digit verification code.');
     return;
   }
 
+  isVerifyingOtp = true;
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Verifying...</span>';
   }
-  if (errorEl) errorEl.innerText = '';
+  renderLoginError('');
 
   try {
     const res = await adminApi('/api/admin/verify-otp', {
@@ -263,10 +291,11 @@ const handleVerifyOtp = async (e) => {
         document.getElementById('login-totp')?.focus();
       }
     }
-    if (errorEl) {
-      errorEl.innerText = err.message || 'Verification failed. Please check the code.';
-    }
+    const errorMsg = err.message || 'Verification failed. Please check the code.';
+    renderLoginError(errorMsg);
+    showAdminToast(errorMsg, 'error');
   } finally {
+    isVerifyingOtp = false;
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> <span>Verify & Sign In</span>';

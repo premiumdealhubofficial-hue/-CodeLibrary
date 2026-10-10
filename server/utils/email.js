@@ -2,28 +2,78 @@ const nodemailer = require('nodemailer');
 const config = require('./config');
 
 /**
- * Creates and returns a Nodemailer transporter instance based on server configuration.
+ * Builds list of prioritized transporters with aggressive timeouts and fallbacks.
  */
-function getTransporter() {
+function createTransporters() {
   if (!config.SMTP_USER || !config.SMTP_PASS) {
-    return null;
+    return [];
   }
 
   const port = Number(config.SMTP_PORT) || 465;
-  const isSecure = config.SMTP_SECURE !== false && (port === 465 || config.SMTP_SECURE === true);
+  const isGmail = (config.SMTP_HOST || 'smtp.gmail.com').toLowerCase().includes('gmail.com');
+  const transports = [];
 
-  return nodemailer.createTransport({
-    host: config.SMTP_HOST || 'smtp.gmail.com',
-    port: port,
-    secure: isSecure,
-    auth: {
-      user: config.SMTP_USER,
-      pass: config.SMTP_PASS
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
+  // Strategy 1: For Gmail, service: 'gmail' is the most battle-tested preset
+  if (isGmail) {
+    transports.push({
+      name: 'Gmail Service Preset',
+      transporter: nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: config.SMTP_USER,
+          pass: config.SMTP_PASS
+        },
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000
+      })
+    });
+  }
+
+  // Strategy 2: Direct Host/Port Config (e.g. port 465 SSL)
+  transports.push({
+    name: `Direct SMTP (${config.SMTP_HOST || 'smtp.gmail.com'}:${port})`,
+    transporter: nodemailer.createTransport({
+      host: config.SMTP_HOST || 'smtp.gmail.com',
+      port: port,
+      secure: port === 465,
+      auth: {
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASS
+      },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 10000,
+      tls: {
+        rejectUnauthorized: false
+      }
+    })
   });
+
+  // Strategy 3: Port 587 STARTTLS Fallback if port 465 is blocked by host/firewall
+  if (port === 465) {
+    transports.push({
+      name: `Fallback SMTP (${config.SMTP_HOST || 'smtp.gmail.com'}:587 STARTTLS)`,
+      transporter: nodemailer.createTransport({
+        host: config.SMTP_HOST || 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        requireTLS: true,
+        auth: {
+          user: config.SMTP_USER,
+          pass: config.SMTP_PASS
+        },
+        connectionTimeout: 8000,
+        greetingTimeout: 8000,
+        socketTimeout: 10000,
+        tls: {
+          rejectUnauthorized: false
+        }
+      })
+    });
+  }
+
+  return transports;
 }
 
 /**
@@ -34,6 +84,26 @@ function isSmtpConfigured() {
 }
 
 /**
+ * Classifies raw SMTP error into a safe, human-actionable message.
+ */
+function classifySmtpError(err) {
+  if (!err) return 'Unknown SMTP delivery error';
+  const msg = String(err.message || err);
+  const code = String(err.code || '');
+
+  if (code === 'EAUTH' || msg.includes('535') || msg.includes('Username and Password not accepted') || msg.includes('BadCredentials')) {
+    return 'Gmail authentication failed. Please verify that SMTP_USER is correct and that SMTP_PASS is a valid 16-character Gmail App Password (generated under Google Account > Security > 2-Step Verification > App passwords).';
+  }
+  if (code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT' || msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('timed out')) {
+    return 'Connection to Gmail SMTP server timed out. Please verify your Render environment network settings or SMTP configuration.';
+  }
+  if (code === 'ECONNREFUSED' || code === 'EHOSTUNREACH' || code === 'ENOTFOUND') {
+    return 'Could not connect to SMTP mail server. Please verify SMTP_HOST and SMTP_PORT in Render.';
+  }
+  return `Email delivery error: ${msg}`;
+}
+
+/**
  * Sends a 6-digit OTP email to the admin for secure login verification.
  * 
  * @param {string} toEmail - Recipient email address
@@ -41,14 +111,20 @@ function isSmtpConfigured() {
  * @returns {Promise<Object>} Nodemailer send result
  */
 async function sendAdminLoginOtp(toEmail, otpCode) {
-  // If in mock/test environment without real SMTP
+  // Mock mode for local tests
   if (process.env.NODE_ENV === 'test' && !config.SMTP_USER) {
     return { messageId: 'test-mock-id-' + Date.now(), accepted: [toEmail] };
   }
 
-  const transporter = getTransporter();
-  if (!transporter) {
+  if (!isSmtpConfigured()) {
     const error = new Error('SMTP email service is not configured on the server. Please configure SMTP_USER and SMTP_PASS in Render Environment Variables.');
+    error.code = 'SMTP_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const transports = createTransporters();
+  if (transports.length === 0) {
+    const error = new Error('No valid SMTP transports available.');
     error.code = 'SMTP_NOT_CONFIGURED';
     throw error;
   }
@@ -137,18 +213,38 @@ If you did not attempt to log in to the CodeLibrary Admin Panel, please ignore t
   `.trim();
 
   const mailOptions = {
-    from: config.SMTP_FROM || 'CodeLibrary Security <no-reply@codelibrary.in>',
+    from: config.SMTP_FROM || (config.SMTP_USER ? `CodeLibrary <${config.SMTP_USER}>` : 'CodeLibrary Security <no-reply@codelibrary.in>'),
     to: toEmail,
     subject: `Your CodeLibrary Admin Verification Code: ${otpCode}`,
     text: textContent,
     html: htmlContent
   };
 
-  return await transporter.sendMail(mailOptions);
+  let lastError = null;
+
+  // Try transporters in priority order
+  for (const { name, transporter } of transports) {
+    try {
+      const result = await transporter.sendMail(mailOptions);
+      return result;
+    } catch (err) {
+      console.warn(`[SMTP Warning] Transport "${name}" failed:`, err.message);
+      lastError = err;
+      // Continue to next fallback
+    }
+  }
+
+  // If all transports failed, throw formatted classified error
+  const classifiedMsg = classifySmtpError(lastError);
+  const error = new Error(classifiedMsg);
+  error.originalError = lastError;
+  error.code = lastError?.code || 'SMTP_SEND_FAILED';
+  throw error;
 }
 
 module.exports = {
-  getTransporter,
+  createTransporters,
   isSmtpConfigured,
+  classifySmtpError,
   sendAdminLoginOtp
 };
