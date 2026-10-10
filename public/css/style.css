@@ -3156,3 +3156,40 @@ input[type=number] {
   }
 }
 
+/* Customer Auth & Library Styles */
+.nav-user-btn, .nav-library-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .nav-user-btn span, .nav-library-btn span {
+    display: none;
+  }
+  .nav-user-btn, .nav-library-btn {
+    padding: 0.5rem;
+    font-size: 0.95rem;
+  }
+}
+
+.auth-modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+}
+
+.library-modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+}
+
+

@@ -2,9 +2,22 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const validator = require('validator');
+const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db/schema');
 const config = require('../utils/config');
+
+// Helper to check logged-in customer session
+function getAuthenticatedUserFromCookie(req) {
+  if (req.cookies && req.cookies.token) {
+    try {
+      return jwt.verify(req.cookies.token, config.JWT_SECRET);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
 
 // Helper to validate coupon and calculate discount strictly server-side
 function validateAndCalculateDiscount(db, couponCode, subtotal, customerId = null, customerEmail = null) {
@@ -280,19 +293,36 @@ router.post('/create-order', async (req, res) => {
     let discountAmount = 0;
     let appliedCouponCode = null;
 
-    // Find or create customer in users table for database referential integrity
-    let customerId = uuidv4();
-    const customerEmailToSave = cleanEmail || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}@guest.codelibrary.in`;
-    const existingUser = db.prepare('SELECT id, name FROM users WHERE email = ?').get(customerEmailToSave);
-    if (existingUser) {
-      customerId = existingUser.id;
-      if (cleanName && cleanName !== existingUser.name) {
-        db.prepare('UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(cleanName, customerId);
-      }
+    // Find or assign customer in users table for database referential integrity
+    const loggedInUser = getAuthenticatedUserFromCookie(req);
+    let customerId = null;
+
+    if (loggedInUser && loggedInUser.id) {
+      customerId = loggedInUser.id;
     } else {
-      db.prepare('INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)').run(
-        customerId, cleanName || 'Customer', customerEmailToSave, null
-      );
+      // Guest Checkout: Link to guest record or create one, never exposing password-protected account history
+      const customerEmailToSave = cleanEmail || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}@guest.codelibrary.in`;
+      const existingUser = db.prepare('SELECT id, name, password_hash FROM users WHERE email = ?').get(customerEmailToSave);
+      
+      if (existingUser && !existingUser.password_hash) {
+        customerId = existingUser.id;
+        if (cleanName && cleanName !== existingUser.name) {
+          db.prepare('UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(cleanName, customerId);
+        }
+      } else if (!existingUser) {
+        customerId = uuidv4();
+        db.prepare('INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)').run(
+          customerId, cleanName || 'Customer', customerEmailToSave, null
+        );
+      } else {
+        // Email belongs to a registered account with password, but checkout is unauthenticated (guest)
+        // Assign a distinct guest customer ID to prevent unauthorized order linking
+        customerId = uuidv4();
+        const guestEmailAlias = `guest_${Date.now()}_${customerId.substring(0, 8)}@guest.codelibrary.in`;
+        db.prepare('INSERT INTO users (id, name, email, password_hash) VALUES (?, ?, ?, ?)').run(
+          customerId, cleanName || 'Customer', guestEmailAlias, null
+        );
+      }
     }
 
     // Validate and apply coupon if provided
@@ -445,6 +475,13 @@ router.post('/verify', (req, res) => {
     }
   }
 
+  // If user is currently logged in, associate order with their account
+  const loggedInUser = getAuthenticatedUserFromCookie(req);
+  const effectiveCustomerId = (loggedInUser && loggedInUser.id) ? loggedInUser.id : (order.customer_id || 'guest');
+  if (loggedInUser && loggedInUser.id && order.customer_id !== loggedInUser.id) {
+    db.prepare('UPDATE orders SET customer_id = ? WHERE id = ?').run(loggedInUser.id, order.id);
+  }
+
   // Resolve purchased items and grant download access
   let purchasedProducts = [];
   let rawItems = [];
@@ -455,10 +492,10 @@ router.post('/verify', (req, res) => {
   }
 
   if (order.order_type === 'book') {
-    const book = db.prepare('SELECT id, title, slug, category, price, cover_image FROM books WHERE id = ? OR slug = ?').get(order.product_id, order.product_id);
+    const book = db.prepare('SELECT id, title, slug, category, price, cover_image, google_drive_url FROM books WHERE id = ? OR slug = ?').get(order.product_id, order.product_id);
     if (book) {
       db.prepare('INSERT OR IGNORE INTO download_access (id, customer_id, book_id, order_id) VALUES (?, ?, ?, ?)').run(
-        uuidv4(), order.customer_id || 'guest', book.id, order.id
+        uuidv4(), effectiveCustomerId, book.id, order.id
       );
       purchasedProducts.push({
         id: book.id,
@@ -467,6 +504,7 @@ router.post('/verify', (req, res) => {
         category: book.category,
         price: book.price,
         cover_image: book.cover_image,
+        google_drive_url: book.google_drive_url || null,
         type: 'book',
         download_url: `/api/orders/${order.id}/download/${book.id}?token=${order.download_token}`
       });
@@ -477,9 +515,9 @@ router.post('/verify', (req, res) => {
       const bookIds = JSON.parse(bundle.books || '[]');
       const stmt = db.prepare('INSERT OR IGNORE INTO download_access (id, customer_id, book_id, order_id) VALUES (?, ?, ?, ?)');
       for (const bid of bookIds) {
-        const book = db.prepare('SELECT id, title, slug, category, price, cover_image FROM books WHERE id = ? OR slug = ?').get(bid, bid);
+        const book = db.prepare('SELECT id, title, slug, category, price, cover_image, google_drive_url FROM books WHERE id = ? OR slug = ?').get(bid, bid);
         if (book) {
-          stmt.run(uuidv4(), order.customer_id || 'guest', book.id, order.id);
+          stmt.run(uuidv4(), effectiveCustomerId, book.id, order.id);
           purchasedProducts.push({
             id: book.id,
             title: book.title,
@@ -487,6 +525,7 @@ router.post('/verify', (req, res) => {
             category: book.category,
             price: book.price,
             cover_image: book.cover_image,
+            google_drive_url: book.google_drive_url || null,
             type: 'book',
             download_url: `/api/orders/${order.id}/download/${book.id}?token=${order.download_token}`
           });
@@ -502,9 +541,9 @@ router.post('/verify', (req, res) => {
           const bookIds = JSON.parse(bundle.books || '[]');
           const stmt = db.prepare('INSERT OR IGNORE INTO download_access (id, customer_id, book_id, order_id) VALUES (?, ?, ?, ?)');
           for (const bid of bookIds) {
-            const book = db.prepare('SELECT id, title, slug, category, price, cover_image FROM books WHERE id = ? OR slug = ?').get(bid, bid);
+            const book = db.prepare('SELECT id, title, slug, category, price, cover_image, google_drive_url FROM books WHERE id = ? OR slug = ?').get(bid, bid);
             if (book) {
-              stmt.run(uuidv4(), order.customer_id || 'guest', book.id, order.id);
+              stmt.run(uuidv4(), effectiveCustomerId, book.id, order.id);
               if (!purchasedProducts.some(p => p.id === book.id)) {
                 purchasedProducts.push({
                   id: book.id,
@@ -513,6 +552,7 @@ router.post('/verify', (req, res) => {
                   category: book.category,
                   price: book.price,
                   cover_image: book.cover_image,
+                  google_drive_url: book.google_drive_url || null,
                   type: 'book',
                   download_url: `/api/orders/${order.id}/download/${book.id}?token=${order.download_token}`
                 });
@@ -521,10 +561,10 @@ router.post('/verify', (req, res) => {
           }
         }
       } else {
-        const book = db.prepare('SELECT id, title, slug, category, price, cover_image FROM books WHERE id = ? OR slug = ?').get(item.id, item.id || item.slug);
+        const book = db.prepare('SELECT id, title, slug, category, price, cover_image, google_drive_url FROM books WHERE id = ? OR slug = ?').get(item.id, item.id || item.slug);
         if (book) {
           db.prepare('INSERT OR IGNORE INTO download_access (id, customer_id, book_id, order_id) VALUES (?, ?, ?, ?)').run(
-            uuidv4(), order.customer_id || 'guest', book.id, order.id
+            uuidv4(), effectiveCustomerId, book.id, order.id
           );
           if (!purchasedProducts.some(p => p.id === book.id)) {
             purchasedProducts.push({
@@ -534,6 +574,7 @@ router.post('/verify', (req, res) => {
               category: book.category,
               price: book.price,
               cover_image: book.cover_image,
+              google_drive_url: book.google_drive_url || null,
               type: 'book',
               download_url: `/api/orders/${order.id}/download/${book.id}?token=${order.download_token}`
             });

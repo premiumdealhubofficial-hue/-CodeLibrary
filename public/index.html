@@ -38,6 +38,12 @@
                     <i class="fab fa-whatsapp"></i>
                     <span class="whatsapp-btn-text">WhatsApp Help</span>
                 </a>
+                <button class="btn btn-outline btn-sm nav-user-btn" id="btn-auth-open" title="Account / Sign In">
+                    <i class="fas fa-user"></i> <span id="nav-user-text">Sign In</span>
+                </button>
+                <button class="btn btn-primary btn-sm nav-library-btn" id="btn-library-open" style="display: none;" title="My Purchased eBooks">
+                    <i class="fas fa-book-reader"></i> <span>My Library</span>
+                </button>
                 <button class="icon-btn search-btn" id="btn-search-open" aria-label="Search eBooks" title="Search">
                     <i class="fas fa-search"></i>
                 </button>
@@ -725,6 +731,23 @@
                 </a>
             </div>
 
+            <!-- Optional: Save Purchases to Account Card (Shown for Guests) -->
+            <div id="thankyou-save-account-card" style="display: none; background: rgba(37, 99, 235, 0.06); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <strong style="color: var(--text-primary); font-size: 0.95rem; display: block; margin-bottom: 0.25rem;">
+                            <i class="fas fa-bookmark" style="color: var(--accent-blue);"></i> Save to Your CodeLibrary Account?
+                        </strong>
+                        <p style="font-size: 0.83rem; color: var(--text-secondary); margin: 0;">
+                            Create a free account or sign in to access your eBooks anytime from <strong>My Library</strong>.
+                        </p>
+                    </div>
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-thankyou-save-account" style="white-space: nowrap; align-self: center;">
+                        <i class="fas fa-user-plus"></i> Save to Account
+                    </button>
+                </div>
+            </div>
+
             <!-- Actions Bar: Invoice & Done -->
             <div class="thankyou-actions" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                 <a id="btn-success-invoice" href="#" target="_blank" class="btn btn-outline" style="flex: 1; text-align: center; justify-content: center; display: inline-flex; align-items: center; gap: 0.5rem;">
@@ -733,6 +756,96 @@
                 <button class="btn btn-primary" onclick="closeModals();" style="flex: 1; justify-content: center; display: inline-flex; align-items: center; gap: 0.5rem;">
                     <i class="fas fa-check"></i> Done
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Authentication Modal (Sign In / Register) -->
+    <div class="modal-overlay" id="auth-modal">
+        <div class="modal-content auth-modal-box" style="max-width: 440px; padding: 2.25rem 2rem;">
+            <button class="close-modal" aria-label="Close">&times;</button>
+            
+            <div class="auth-header" style="text-align: center; margin-bottom: 1.5rem;">
+                <div style="font-size: 1.5rem; font-weight: 800; color: var(--accent-blue); margin-bottom: 0.25rem;">
+                    <i class="fas fa-terminal"></i> CodeLibrary
+                </div>
+                <h3 id="auth-modal-title" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">Customer Account</h3>
+                <p id="auth-modal-subtitle" style="font-size: 0.85rem; color: var(--text-secondary);">Access your purchased eBooks anytime</p>
+            </div>
+
+            <!-- Tab Switcher -->
+            <div class="auth-tabs" style="display: flex; background: var(--bg-secondary); border-radius: 8px; padding: 4px; margin-bottom: 1.5rem; gap: 4px;">
+                <button type="button" class="auth-tab-btn active" id="tab-btn-login" onclick="switchAuthTab('login')" style="flex: 1; padding: 0.5rem 1rem; border: none; background: var(--bg-card); color: var(--text-primary); border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    Sign In
+                </button>
+                <button type="button" class="auth-tab-btn" id="tab-btn-register" onclick="switchAuthTab('register')" style="flex: 1; padding: 0.5rem 1rem; border: none; background: transparent; color: var(--text-secondary); border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    Create Account
+                </button>
+            </div>
+
+            <div id="auth-error-msg" class="auth-error-alert" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; padding: 0.65rem 0.85rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem;"></div>
+
+            <!-- Login Form -->
+            <form id="customer-login-form" style="display: block;">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="customer-login-email" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Email Address</label>
+                    <input type="email" id="customer-login-email" class="form-control" placeholder="name@example.com" required autocomplete="username">
+                </div>
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label for="customer-login-password" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Password</label>
+                    <input type="password" id="customer-login-password" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-customer-login-submit" style="width: 100%;">
+                    <span>Sign In</span> <i class="fas fa-sign-in-alt"></i>
+                </button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="customer-register-form" style="display: none;">
+                <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label for="customer-reg-name" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Full Name</label>
+                    <input type="text" id="customer-reg-name" class="form-control" placeholder="John Doe" required autocomplete="name">
+                </div>
+                <div class="form-group" style="margin-bottom: 0.85rem;">
+                    <label for="customer-reg-email" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Email Address</label>
+                    <input type="email" id="customer-reg-email" class="form-control" placeholder="name@example.com" required autocomplete="username">
+                </div>
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label for="customer-reg-password" style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem;">Create Password (min 6 characters)</label>
+                    <input type="password" id="customer-reg-password" class="form-control" placeholder="••••••••" required minlength="6" autocomplete="new-password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-customer-reg-submit" style="width: 100%;">
+                    <span>Create Account</span> <i class="fas fa-user-plus"></i>
+                </button>
+            </form>
+
+            <div style="margin-top: 1.25rem; text-align: center; font-size: 0.8rem; color: var(--text-secondary);">
+                <span>Need help? <a href="https://wa.me/917808202338" target="_blank" style="color: #25D366; font-weight: 600;"><i class="fab fa-whatsapp"></i> WhatsApp Support</a></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer My Library / Purchases Modal -->
+    <div class="modal-overlay" id="library-modal">
+        <div class="modal-content library-modal-box" style="max-width: 750px; padding: 2.25rem 2rem;">
+            <button class="close-modal" aria-label="Close">&times;</button>
+            
+            <div class="library-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-book-reader" style="color: var(--accent-blue);"></i> My Library
+                    </h2>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.2rem;" id="library-user-welcome">
+                        Your purchased eBooks & Google Drive links
+                    </p>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm" onclick="handleCustomerLogout();" style="font-size: 0.8rem; padding: 0.4rem 0.85rem;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+
+            <div id="library-books-container">
+                <!-- Injected via JS -->
             </div>
         </div>
     </div>
@@ -760,7 +873,17 @@
             <li><a href="#reviews">Reviews</a></li>
             <li><a href="#faq">FAQ</a></li>
             <li><a href="#contact">Contact</a></li>
-            <li style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+            <li style="margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem;">
+                <a href="javascript:void(0)" id="mobile-user-link" onclick="handleMobileAuthClick();" style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                    <i class="fas fa-user"></i> <span id="mobile-user-text">Sign In / Account</span>
+                </a>
+            </li>
+            <li id="mobile-library-item" style="display: none;">
+                <a href="javascript:void(0)" onclick="openLibraryModal();" style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--accent-blue);">
+                    <i class="fas fa-book-reader"></i> My Library
+                </a>
+            </li>
+            <li style="margin-top: 0.5rem;">
                 <a href="https://wa.me/917808202338?text=Hello%20CodeLibrary%20Support%2C%20I%20need%20help%20with%20my%20eBook%2Forder." target="_blank" rel="noopener noreferrer" style="color: #25D366; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
                     <i class="fab fa-whatsapp" style="font-size: 1.3rem;"></i> WhatsApp Help (+91 7808202338)
                 </a>

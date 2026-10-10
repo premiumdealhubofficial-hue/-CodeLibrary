@@ -67,12 +67,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   initBundleActions();
   initReviewsCarousel();
   initCouponListeners();
+  initCustomerAuthListeners();
   
   await Promise.all([
     fetchBooks(),
     fetchBundle(),
     fetchReviews(),
-    fetchSettings()
+    fetchSettings(),
+    checkAuthStatus()
   ]);
 });
 
@@ -1233,6 +1235,8 @@ async function executeCheckout() {
   }
 }
 
+let pendingSaveOrder = null;
+
 async function verifyAndCompleteOrder(paymentResponse, clientOrderId) {
   try {
     const verifyResult = await api('/api/payment/verify', {
@@ -1264,24 +1268,58 @@ async function verifyAndCompleteOrder(paymentResponse, clientOrderId) {
         invoiceBtn.href = verifyResult.invoice_url;
       }
 
-      // Populate Download items list
+      // Populate Download / Drive items list
       const itemsListContainer = document.getElementById('success-items-list');
       if (itemsListContainer) {
         const items = verifyResult.items || [];
         if (items.length === 0) {
           itemsListContainer.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.85rem;">eBook access unlocked.</p>';
         } else {
-          itemsListContainer.innerHTML = items.map(item => `
-            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.85rem 1rem; border-radius: 8px;">
-              <div>
-                <div style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem;">${escapeHtml(item.title)}</div>
-                <div style="font-size: 0.8rem; color: var(--text-secondary);"><i class="fas fa-file-pdf" style="color: #ef4444;"></i> Digital PDF Edition</div>
+          itemsListContainer.innerHTML = items.map(item => {
+            const driveTargetUrl = item.google_drive_url || item.download_url;
+            return `
+              <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.85rem 1rem; border-radius: 8px; flex-wrap: wrap; gap: 0.6rem;">
+                <div>
+                  <div style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem;">${escapeHtml(item.title)}</div>
+                  <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.35rem;">
+                    <i class="fab fa-google-drive" style="color: #2563eb;"></i> Notes Folder Access
+                  </div>
+                </div>
+                <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;">
+                  <a href="${escapeHtml(driveTargetUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.85rem; font-size: 0.83rem;">
+                    <i class="fab fa-google-drive"></i> Open Google Drive Folder
+                  </a>
+                  <a href="${escapeHtml(item.download_url)}" target="_blank" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.75rem; font-size: 0.83rem;" title="Direct PDF Download">
+                    <i class="fas fa-download"></i> Download PDF
+                  </a>
+                </div>
               </div>
-              <a href="${escapeHtml(item.download_url)}" target="_blank" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.9rem; font-size: 0.85rem;">
-                <i class="fas fa-download"></i> Download eBook
-              </a>
-            </div>
-          `).join('');
+            `;
+          }).join('');
+        }
+      }
+
+      // If buyer is a guest (not currently logged in), offer optional account creation to save the order
+      const saveAccountCard = document.getElementById('thankyou-save-account-card');
+      if (saveAccountCard) {
+        if (!state.user) {
+          saveAccountCard.style.display = 'block';
+          pendingSaveOrder = {
+            order_id: verifyResult.order_id,
+            download_token: verifyResult.download_token,
+            email: verifyResult.customer_email,
+            name: verifyResult.customer_name
+          };
+
+          const saveBtn = document.getElementById('btn-thankyou-save-account');
+          if (saveBtn) {
+            saveBtn.onclick = () => {
+              openAuthModal('register', pendingSaveOrder);
+            };
+          }
+        } else {
+          saveAccountCard.style.display = 'none';
+          pendingSaveOrder = null;
         }
       }
 
@@ -1560,3 +1598,348 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// Customer Authentication & Library Controller
+async function checkAuthStatus() {
+  try {
+    const res = await fetch('/api/auth/me', {
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin'
+    });
+    if (res.ok) {
+      const data = await res.json();
+      state.user = data.user || data;
+    } else {
+      state.user = null;
+    }
+  } catch (err) {
+    state.user = null;
+  }
+  updateAuthUI();
+}
+
+function updateAuthUI() {
+  const navUserText = document.getElementById('nav-user-text');
+  const btnAuthOpen = document.getElementById('btn-auth-open');
+  const btnLibraryOpen = document.getElementById('btn-library-open');
+  const mobileUserText = document.getElementById('mobile-user-text');
+  const mobileLibraryItem = document.getElementById('mobile-library-item');
+
+  if (state.user) {
+    const displayName = state.user.name ? state.user.name.split(' ')[0] : 'Account';
+    if (navUserText) navUserText.textContent = displayName;
+    if (btnAuthOpen) {
+      btnAuthOpen.title = `Signed in as ${state.user.email}`;
+      btnAuthOpen.onclick = () => openLibraryModal();
+    }
+    if (btnLibraryOpen) {
+      btnLibraryOpen.style.display = 'inline-flex';
+      btnLibraryOpen.onclick = () => openLibraryModal();
+    }
+    if (mobileUserText) mobileUserText.textContent = `${displayName} (Sign Out)`;
+    if (mobileLibraryItem) mobileLibraryItem.style.display = 'block';
+  } else {
+    if (navUserText) navUserText.textContent = 'Sign In';
+    if (btnAuthOpen) {
+      btnAuthOpen.title = 'Account / Sign In';
+      btnAuthOpen.onclick = () => openAuthModal('login');
+    }
+    if (btnLibraryOpen) {
+      btnLibraryOpen.style.display = 'none';
+    }
+    if (mobileUserText) mobileUserText.textContent = 'Sign In / Account';
+    if (mobileLibraryItem) mobileLibraryItem.style.display = 'none';
+  }
+}
+
+window.handleMobileAuthClick = function() {
+  closeModals();
+  const mobileMenu = document.getElementById('mobile-menu');
+  if (mobileMenu) mobileMenu.classList.remove('active');
+  
+  if (state.user) {
+    handleCustomerLogout();
+  } else {
+    openAuthModal('login');
+  }
+};
+
+window.openAuthModal = function(tab = 'login', saveOrderData = null) {
+  closeModals();
+  const errorEl = document.getElementById('auth-error-msg');
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+  }
+
+  if (saveOrderData) {
+    pendingSaveOrder = saveOrderData;
+    const subtitle = document.getElementById('auth-modal-subtitle');
+    if (subtitle) subtitle.textContent = 'Create an account or Sign In to save your purchased eBooks';
+    
+    const loginEmail = document.getElementById('customer-login-email');
+    const regEmail = document.getElementById('customer-reg-email');
+    const regName = document.getElementById('customer-reg-name');
+    if (loginEmail && saveOrderData.email) loginEmail.value = saveOrderData.email;
+    if (regEmail && saveOrderData.email) regEmail.value = saveOrderData.email;
+    if (regName && saveOrderData.name) regName.value = saveOrderData.name;
+  } else {
+    const subtitle = document.getElementById('auth-modal-subtitle');
+    if (subtitle) subtitle.textContent = 'Access your purchased eBooks anytime';
+  }
+
+  switchAuthTab(tab);
+  openModal('auth-modal');
+};
+
+window.switchAuthTab = function(tab) {
+  const tabLogin = document.getElementById('tab-btn-login');
+  const tabReg = document.getElementById('tab-btn-register');
+  const formLogin = document.getElementById('customer-login-form');
+  const formReg = document.getElementById('customer-register-form');
+  const errorEl = document.getElementById('auth-error-msg');
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+  }
+
+  if (tab === 'register') {
+    tabLogin.classList.remove('active');
+    tabLogin.style.background = 'transparent';
+    tabLogin.style.color = 'var(--text-secondary)';
+    tabReg.classList.add('active');
+    tabReg.style.background = 'var(--bg-card)';
+    tabReg.style.color = 'var(--text-primary)';
+    formLogin.style.display = 'none';
+    formReg.style.display = 'block';
+  } else {
+    tabReg.classList.remove('active');
+    tabReg.style.background = 'transparent';
+    tabReg.style.color = 'var(--text-secondary)';
+    tabLogin.classList.add('active');
+    tabLogin.style.background = 'var(--bg-card)';
+    tabLogin.style.color = 'var(--text-primary)';
+    formReg.style.display = 'none';
+    formLogin.style.display = 'block';
+  }
+};
+
+function initCustomerAuthListeners() {
+  document.getElementById('btn-auth-open')?.addEventListener('click', () => {
+    if (state.user) {
+      openLibraryModal();
+    } else {
+      openAuthModal('login');
+    }
+  });
+
+  document.getElementById('btn-library-open')?.addEventListener('click', openLibraryModal);
+
+  // Customer Login Form Submit
+  document.getElementById('customer-login-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('customer-login-email').value.trim();
+    const password = document.getElementById('customer-login-password').value;
+    const btn = document.getElementById('btn-customer-login-submit');
+    const errorEl = document.getElementById('auth-error-msg');
+
+    if (!email || !password) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing In...';
+    if (errorEl) errorEl.style.display = 'none';
+
+    try {
+      const payload = { email, password };
+      if (pendingSaveOrder) {
+        payload.order_id = pendingSaveOrder.order_id;
+        payload.download_token = pendingSaveOrder.download_token;
+      }
+
+      const res = await api('/api/auth/login', {
+        method: 'POST',
+        body: payload
+      });
+
+      state.user = res.user;
+      updateAuthUI();
+      closeModals();
+      showToast(`Welcome back, ${state.user.name || 'Student'}!`, 'success');
+
+      if (pendingSaveOrder) {
+        showToast('🎉 Your purchase has been saved to My Library!', 'success');
+        pendingSaveOrder = null;
+        const saveCard = document.getElementById('thankyou-save-account-card');
+        if (saveCard) saveCard.style.display = 'none';
+      }
+    } catch (err) {
+      if (errorEl) {
+        errorEl.textContent = err.message || 'Invalid email or password';
+        errorEl.style.display = 'block';
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>Sign In</span> <i class="fas fa-sign-in-alt"></i>';
+    }
+  });
+
+  // Customer Register Form Submit
+  document.getElementById('customer-register-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('customer-reg-name').value.trim();
+    const email = document.getElementById('customer-reg-email').value.trim();
+    const password = document.getElementById('customer-reg-password').value;
+    const btn = document.getElementById('btn-customer-reg-submit');
+    const errorEl = document.getElementById('auth-error-msg');
+
+    if (!name || !email || !password) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+    if (errorEl) errorEl.style.display = 'none';
+
+    try {
+      const payload = { name, email, password };
+      if (pendingSaveOrder) {
+        payload.order_id = pendingSaveOrder.order_id;
+        payload.download_token = pendingSaveOrder.download_token;
+      }
+
+      const res = await api('/api/auth/register', {
+        method: 'POST',
+        body: payload
+      });
+
+      state.user = res.user;
+      updateAuthUI();
+      closeModals();
+      showToast(`Account created! Welcome, ${state.user.name}!`, 'success');
+
+      if (pendingSaveOrder) {
+        showToast('🎉 Your purchase has been saved to My Library!', 'success');
+        pendingSaveOrder = null;
+        const saveCard = document.getElementById('thankyou-save-account-card');
+        if (saveCard) saveCard.style.display = 'none';
+      }
+    } catch (err) {
+      if (errorEl) {
+        errorEl.textContent = err.message || 'Could not create account';
+        errorEl.style.display = 'block';
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>Create Account</span> <i class="fas fa-user-plus"></i>';
+    }
+  });
+}
+
+window.handleCustomerLogout = async function() {
+  try {
+    await api('/api/auth/logout', { method: 'POST' });
+  } catch (e) {}
+  state.user = null;
+  state.myBooks = [];
+  updateAuthUI();
+  closeModals();
+  showToast('You have been signed out.', 'info');
+};
+
+window.openLibraryModal = async function() {
+  if (!state.user) {
+    openAuthModal('login');
+    return;
+  }
+
+  closeModals();
+  const container = document.getElementById('library-books-container');
+  const welcomeEl = document.getElementById('library-user-welcome');
+  if (welcomeEl) {
+    welcomeEl.textContent = `Welcome, ${state.user.name} (${state.user.email}) — Your purchased eBooks & notes`;
+  }
+
+  if (container) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 3rem 1rem; color: var(--text-secondary);">
+        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--accent-blue); margin-bottom: 1rem;"></i>
+        <p>Loading your personal library...</p>
+      </div>
+    `;
+  }
+
+  openModal('library-modal');
+
+  try {
+    const data = await api('/api/auth/my-books');
+    state.myBooks = Array.isArray(data.books) ? data.books : (Array.isArray(data) ? data : []);
+
+    if (!container) return;
+
+    if (state.myBooks.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 3rem 1rem;">
+          <div style="font-size: 3rem; color: var(--text-secondary); opacity: 0.5; margin-bottom: 1rem;">
+            <i class="fas fa-book-open"></i>
+          </div>
+          <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">Your Library is Empty</h3>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; max-width: 420px; margin: 0 auto 1.5rem;">
+            You haven't purchased any eBooks yet on this account. Explore our catalog of programming guides to get started!
+          </p>
+          <a href="#ebooks" class="btn btn-primary" onclick="closeModals();">
+            <i class="fas fa-book-reader"></i> Explore eBooks &rarr;
+          </a>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 1rem; max-height: 480px; overflow-y: auto; padding-right: 0.25rem;">
+        ${state.myBooks.map((book, idx) => {
+          const driveTargetUrl = book.google_drive_url || book.download_url;
+          const dateStr = book.granted_at ? new Date(book.granted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Purchased';
+          
+          return `
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; gap: 1rem; flex-wrap: wrap; box-shadow: var(--neu-flat-sm);">
+              <div style="display: flex; align-items: center; gap: 1rem; min-width: 220px; flex: 1;">
+                ${book.cover_image ? `
+                  <img src="${escapeHtml(book.cover_image)}" alt="${escapeHtml(book.title)}" style="width: 50px; height: 68px; object-fit: cover; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);" onerror="this.style.display='none'">
+                ` : `
+                  <div style="width: 50px; height: 68px; background: var(--gradient-1); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.2rem;">
+                    <i class="fas fa-file-pdf"></i>
+                  </div>
+                `}
+                <div>
+                  <div style="font-weight: 800; font-size: 1rem; color: var(--text-primary);">${escapeHtml(book.title)}</div>
+                  <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.15rem;">
+                    <span style="display: inline-block; background: var(--bg-secondary); padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; text-transform: capitalize;">${escapeHtml(formatCategory(book.category))}</span>
+                    <span style="margin-left: 0.5rem; opacity: 0.85;">Unlocked on ${dateStr}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <a href="${escapeHtml(driveTargetUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" style="display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 1rem; font-size: 0.85rem;">
+                  <i class="fab fa-google-drive"></i> Open Google Drive Folder
+                </a>
+                <a href="${escapeHtml(book.download_url)}" target="_blank" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; font-size: 0.85rem;">
+                  <i class="fas fa-download"></i> Download PDF
+                </a>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  } catch (err) {
+    if (container) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 2.5rem 1rem; color: #ef4444;">
+          <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 0.75rem;"></i>
+          <p>Could not load your library: ${escapeHtml(err.message)}</p>
+          <button class="btn btn-secondary mt-4" onclick="openLibraryModal()">Retry</button>
+        </div>
+      `;
+    }
+  }
+};
+

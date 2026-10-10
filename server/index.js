@@ -137,18 +137,32 @@ app.get('/api/reviews', apiLimiter, (req, res) => {
   }
 });
 
-// My books route (moved here for proper mounting)
+// My books route (Customer Library)
 app.get('/api/my-books', require('./middleware/auth').authenticateUser, (req, res) => {
   const db = getDb();
   const books = db.prepare(`
-    SELECT DISTINCT b.id, b.title, b.slug, b.cover_image, b.category, d.granted_at 
+    SELECT DISTINCT b.id, b.title, b.slug, b.cover_image, b.category, b.short_description, b.google_drive_url, d.granted_at, o.id as order_id, o.download_token
     FROM download_access d 
     JOIN books b ON d.book_id = b.id 
     JOIN orders o ON d.order_id = o.id
     WHERE d.customer_id = ? AND o.status = 'paid'
     ORDER BY d.granted_at DESC
   `).all(req.user.id);
-  res.json(books);
+
+  const formattedBooks = books.map(b => ({
+    id: b.id,
+    title: b.title,
+    slug: b.slug,
+    cover_image: b.cover_image,
+    category: b.category,
+    short_description: b.short_description,
+    google_drive_url: b.google_drive_url || null,
+    granted_at: b.granted_at,
+    order_id: b.order_id,
+    download_url: `/api/orders/${b.order_id}/download/${b.id}?token=${b.download_token}`
+  }));
+
+  res.json(formattedBooks);
 });
 
 // Generic error handling middleware
