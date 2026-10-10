@@ -201,19 +201,36 @@ const handleLogin = async (e) => {
   }
 };
 
-const togglePasswordVisibility = () => {
+const togglePasswordVisibility = (e) => {
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
   const pwdInput = document.getElementById('login-password');
   const icon = document.getElementById('password-toggle-icon');
-  if (!pwdInput || !icon) return;
+  const toggleBtn = document.getElementById('btn-toggle-password');
+  if (!pwdInput) return;
 
   if (pwdInput.type === 'password') {
     pwdInput.type = 'text';
-    icon.classList.remove('fa-eye');
-    icon.classList.add('fa-eye-slash');
+    if (icon) {
+      icon.classList.remove('fa-eye');
+      icon.classList.add('fa-eye-slash');
+    }
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-label', 'Hide Password');
+      toggleBtn.setAttribute('title', 'Hide Password');
+    }
   } else {
     pwdInput.type = 'password';
-    icon.classList.remove('fa-eye-slash');
-    icon.classList.add('fa-eye');
+    if (icon) {
+      icon.classList.remove('fa-eye-slash');
+      icon.classList.add('fa-eye');
+    }
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-label', 'Show Password');
+      toggleBtn.setAttribute('title', 'Show Password');
+    }
   }
 };
 
@@ -1484,7 +1501,6 @@ document.getElementById('btn-disable-2fa')?.addEventListener('click', async () =
 
 // Event Listeners
 document.getElementById('login-form')?.addEventListener('submit', handleLogin);
-document.getElementById('btn-login')?.addEventListener('click', handleLogin);
 document.getElementById('btn-toggle-password')?.addEventListener('click', togglePasswordVisibility);
 document.getElementById('admin-logout')?.addEventListener('click', handleLogout);
 document.getElementById('contact-settings-form')?.addEventListener('submit', handleContactSettingsSubmit);
