@@ -56,10 +56,10 @@ async function api(path, options = {}) {
 }
 
 // ==========================================
-// Meta Pixel Tracking Helper (Pixel ID: 2119378445374080)
+// Meta Pixel Tracking Helper (Pixel ID: 1066027616254815)
 // ==========================================
 const MetaPixel = {
-  PIXEL_ID: '2119378445374080',
+  PIXEL_ID: '1066027616254815',
   lastInitiateCheckoutSignature: null,
 
   getTestEventCode() {
