@@ -55,6 +55,139 @@ async function api(path, options = {}) {
   }
 }
 
+// ==========================================
+// Meta Pixel Tracking Helper (Pixel ID: 2119378445374080)
+// ==========================================
+const MetaPixel = {
+  PIXEL_ID: '2119378445374080',
+  lastInitiateCheckoutSignature: null,
+
+  getTestEventCode() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('test_event_code') || params.get('meta_test_code') || null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  track(eventName, params = {}, options = {}) {
+    if (typeof window.fbq !== 'function') {
+      return;
+    }
+
+    const testCode = this.getTestEventCode();
+    const finalOptions = { ...options };
+    if (testCode && !finalOptions.test_event_code) {
+      finalOptions.test_event_code = testCode;
+    }
+
+    try {
+      if (Object.keys(finalOptions).length > 0) {
+        window.fbq('track', eventName, params, finalOptions);
+      } else {
+        window.fbq('track', eventName, params);
+      }
+    } catch (err) {
+      console.warn('[Meta Pixel] Error tracking event ' + eventName, err);
+    }
+  },
+
+  trackViewContent(book) {
+    if (!book) return;
+    const priceInInr = Number(((book.price || 0) / 100).toFixed(2));
+    this.track('ViewContent', {
+      content_name: book.title || 'eBook',
+      content_category: book.category || 'programming',
+      content_ids: [String(book.id || book.slug || 'ebook')],
+      content_type: 'product',
+      value: priceInInr,
+      currency: 'INR'
+    });
+  },
+
+  trackInitiateCheckout(items, totalAmountInPaise) {
+    const cartItems = Array.isArray(items) && items.length > 0 ? items : (state.cart || []);
+    if (cartItems.length === 0) return;
+
+    // Deduplicate rapid duplicate InitiateCheckout calls for the same cart
+    const signature = cartItems.map(i => i.id || i.slug).sort().join(',') + '_' + totalAmountInPaise;
+    if (this.lastInitiateCheckoutSignature === signature) {
+      return;
+    }
+    this.lastInitiateCheckoutSignature = signature;
+
+    const valueInInr = Number(((totalAmountInPaise || 0) / 100).toFixed(2));
+    const contentIds = cartItems.map(item => String(item.id || item.slug || 'item'));
+
+    this.track('InitiateCheckout', {
+      content_name: cartItems.length === 1 ? (cartItems[0].title || 'eBook') : 'CodeLibrary Cart Checkout',
+      content_ids: contentIds,
+      contents: cartItems.map(item => ({
+        id: String(item.id || item.slug || 'item'),
+        title: item.title || 'eBook',
+        quantity: 1,
+        item_price: Number(((item.price || 0) / 100).toFixed(2))
+      })),
+      content_type: 'product',
+      num_items: cartItems.length,
+      value: valueInInr,
+      currency: 'INR'
+    });
+  },
+
+  trackPurchase(verifiedOrder) {
+    if (!verifiedOrder || !verifiedOrder.order_id) return;
+
+    // Strict deduplication: prevent duplicate Purchase events on refresh or revisit
+    const storageKey = 'meta_pixel_purchase_' + verifiedOrder.order_id;
+    try {
+      if (localStorage.getItem(storageKey) || sessionStorage.getItem(storageKey)) {
+        return;
+      }
+    } catch (e) {}
+
+    const valueInInr = Number(((verifiedOrder.amount || 0) / 100).toFixed(2));
+    const items = Array.isArray(verifiedOrder.items) && verifiedOrder.items.length > 0 
+      ? verifiedOrder.items 
+      : [{ id: verifiedOrder.product_id || 'ebook', title: verifiedOrder.description || 'eBook', price: verifiedOrder.amount }];
+
+    const contentIds = items.map(i => String(i.id || i.slug || 'ebook'));
+
+    this.track('Purchase', {
+      content_type: 'product',
+      content_ids: contentIds,
+      contents: items.map(item => ({
+        id: String(item.id || item.slug || 'ebook'),
+        title: item.title || 'eBook',
+        quantity: 1,
+        item_price: Number(((item.price || verifiedOrder.amount || 0) / 100).toFixed(2))
+      })),
+      num_items: items.length,
+      value: valueInInr,
+      currency: 'INR'
+    }, {
+      eventID: verifiedOrder.order_id
+    });
+
+    try {
+      localStorage.setItem(storageKey, String(Date.now()));
+      sessionStorage.setItem(storageKey, String(Date.now()));
+    } catch (e) {}
+  }
+};
+window.MetaPixel = MetaPixel;
+
+// Navigation listener for SPA PageView deduplication
+let lastTrackedPath = window.location.pathname + window.location.search;
+window.addEventListener('popstate', () => {
+  const currentPath = window.location.pathname + window.location.search;
+  if (currentPath !== lastTrackedPath) {
+    lastTrackedPath = currentPath;
+    MetaPixel.track('PageView');
+  }
+});
+
 // App Initialization
 document.addEventListener('DOMContentLoaded', async () => {
   loadTheme();
@@ -613,6 +746,7 @@ window.openBookDetail = async function(slugOrId) {
     `;
 
     openModal('book-detail-modal');
+    MetaPixel.trackViewContent(book);
   } catch (err) {
     showToast('Failed to load book details', 'error');
   }
@@ -1179,6 +1313,9 @@ async function executeCheckout() {
       }
     });
 
+    // Track InitiateCheckout via Meta Pixel
+    MetaPixel.trackInitiateCheckout(state.cart, orderData.amount);
+
     // Launch Razorpay
     const rzpKey = (orderData.razorpay_key_id || '').trim();
     if (typeof Razorpay !== 'undefined' && rzpKey && !rzpKey.includes('xxxx') && !rzpKey.includes('placeholder')) {
@@ -1250,6 +1387,9 @@ async function verifyAndCompleteOrder(paymentResponse, clientOrderId) {
     });
 
     if (verifyResult.success) {
+      // Track Purchase event via Meta Pixel (ONLY after server verified payment)
+      MetaPixel.trackPurchase(verifyResult);
+
       // Clear shopping cart
       state.cart = [];
       state.appliedCoupon = null;

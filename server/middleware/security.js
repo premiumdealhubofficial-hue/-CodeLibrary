@@ -14,14 +14,27 @@ module.exports = function applySecurity(app) {
           "https://cdn.razorpay.com", 
           "https://cdn.jsdelivr.net", 
           "https://cdnjs.cloudflare.com", 
-          "https://api.razorpay.com"
+          "https://api.razorpay.com",
+          "https://connect.facebook.net"
         ],
         scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://cdnjs.cloudflare.com", "https://fonts.gstatic.com", "data:"],
         imgSrc: ["'self'", "data:", "https:", "blob:"],
-        connectSrc: ["'self'", "https://api.razorpay.com", "https://lumberjack.razorpay.com", "https://cdn.razorpay.com"],
-        frameSrc: ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com"],
+        connectSrc: [
+          "'self'", 
+          "https://api.razorpay.com", 
+          "https://lumberjack.razorpay.com", 
+          "https://cdn.razorpay.com",
+          "https://www.facebook.com",
+          "https://connect.facebook.net"
+        ],
+        frameSrc: [
+          "'self'", 
+          "https://api.razorpay.com", 
+          "https://checkout.razorpay.com",
+          "https://www.facebook.com"
+        ],
         objectSrc: ["'none'"],
         baseUri: ["'self'"]
       }
