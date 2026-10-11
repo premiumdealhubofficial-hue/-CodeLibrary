@@ -420,63 +420,190 @@ router.get('/config-status', (req, res) => {
   });
 });
 
+// Helper to validate gateway payment entity properties
+function validateGatewayPayment(payment, order, expectedRzpOrderId) {
+  if (!payment || typeof payment !== 'object') {
+    return { valid: false, error: 'Payment details could not be retrieved from payment gateway' };
+  }
+  // 1. Must be 'captured' - reject missing or non-captured status
+  if (!payment.status || typeof payment.status !== 'string' || payment.status.trim() !== 'captured') {
+    return {
+      valid: false,
+      error: `Payment is not completed (status: ${payment.status || 'missing'}). Only captured payments are accepted.`
+    };
+  }
+  // 2. Exact Razorpay order ID match - reject missing or mismatched order_id
+  if (!payment.order_id || typeof payment.order_id !== 'string' || payment.order_id.trim() !== expectedRzpOrderId) {
+    return { valid: false, error: 'Razorpay order ID mismatch or missing on gateway' };
+  }
+  // 3. Exact amount equality (in paise) - reject missing or mismatched amount
+  if (typeof payment.amount !== 'number' || payment.amount !== order.amount) {
+    return { valid: false, error: 'Payment amount mismatch between gateway and order record' };
+  }
+  // 4. Expected currency INR - reject missing or non-INR currency
+  if (!payment.currency || typeof payment.currency !== 'string' || payment.currency.trim().toUpperCase() !== 'INR') {
+    return { valid: false, error: 'Invalid payment currency. Expected INR.' };
+  }
+  return { valid: true };
+}
+
 // POST /api/payment/verify - Verify payment and unlock download access (No login required)
-router.post('/verify', (req, res) => {
+router.post('/verify', async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, order_id, db_order_id } = req.body;
   const directOrderId = order_id || db_order_id;
   const db = getDb();
   
-  if (!razorpay_order_id && !directOrderId) {
-    return res.status(400).json({ success: false, error: 'Missing order details for verification' });
+  // 1. Mandatory parameter validation: all Razorpay parameters required
+  if (!razorpay_order_id || typeof razorpay_order_id !== 'string' || !razorpay_order_id.trim()) {
+    return res.status(400).json({ success: false, error: 'Missing required parameter: razorpay_order_id' });
+  }
+  if (!razorpay_payment_id || typeof razorpay_payment_id !== 'string' || !razorpay_payment_id.trim()) {
+    return res.status(400).json({ success: false, error: 'Missing required parameter: razorpay_payment_id' });
+  }
+  if (!razorpay_signature || typeof razorpay_signature !== 'string' || !razorpay_signature.trim()) {
+    return res.status(400).json({ success: false, error: 'Missing required parameter: razorpay_signature' });
   }
 
+  const cleanRzpOrderId = razorpay_order_id.trim();
+  const cleanRzpPaymentId = razorpay_payment_id.trim();
+  const cleanRzpSignature = razorpay_signature.trim();
+
+  // 2. Fetch order record
   const order = db.prepare(`
     SELECT * FROM orders 
     WHERE razorpay_order_id = ? OR id = ?
-  `).get(razorpay_order_id || '', directOrderId || '');
+  `).get(cleanRzpOrderId, directOrderId || '');
 
   if (!order) {
     return res.status(404).json({ success: false, error: 'Order record not found' });
   }
 
-  const rzpConfig = getEffectiveRazorpayConfig(db);
+  if (order.razorpay_order_id && order.razorpay_order_id !== cleanRzpOrderId) {
+    return res.status(400).json({ success: false, error: 'Payment order ID does not match order record' });
+  }
 
-  // Cryptographic signature check when real secret is configured
-  if (rzpConfig.isConfigured) {
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ success: false, error: 'Missing payment signature verification parameters' });
-    }
-    const hmac = crypto.createHmac('sha256', rzpConfig.keySecret);
-    hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
-    const expectedSignature = hmac.digest('hex');
-    if (expectedSignature !== razorpay_signature) {
-      console.error(`Signature mismatch for order ${order.id}: expected ${expectedSignature}, received ${razorpay_signature}`);
-      return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
+  // 3. Guard against duplicate verification attaching a different payment ID to an already-paid order
+  if (order.status === 'paid') {
+    if (order.razorpay_payment_id && order.razorpay_payment_id !== cleanRzpPaymentId) {
+      console.error(`[Payment Security] Duplicate verification rejected: payment ID mismatch on paid order ${order.id}`);
+      return res.status(400).json({
+        success: false,
+        error: 'Order is already marked as paid with a different payment ID'
+      });
     }
   }
 
-  const isAlreadyPaid = (order.status === 'paid');
+  const rzpConfig = getEffectiveRazorpayConfig(db);
+  const isProd = config.NODE_ENV === 'production';
+  const isTestEnv = (process.env.NODE_ENV === 'test' || config.NODE_ENV === 'test') && !isProd;
 
-  if (!isAlreadyPaid) {
-    const paymentId = razorpay_payment_id || `pay_${Date.now()}`;
-    const signature = razorpay_signature || 'verified_server_test';
+  // 4. Cryptographic Signature Validation (Logs sanitized: no signatures exposed)
+  if (rzpConfig.isConfigured && rzpConfig.keySecret) {
+    const hmac = crypto.createHmac('sha256', rzpConfig.keySecret);
+    hmac.update(`${cleanRzpOrderId}|${cleanRzpPaymentId}`);
+    const expectedSignature = hmac.digest('hex');
 
-    db.prepare(`
-      UPDATE orders 
-      SET status = 'paid', razorpay_payment_id = ?, razorpay_signature = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `).run(paymentId, signature, order.id);
+    const sigBuf = Buffer.from(cleanRzpSignature, 'utf-8');
+    const expBuf = Buffer.from(expectedSignature, 'utf-8');
 
-    // Record coupon usage if applied
-    if (order.coupon_code) {
-      const coupon = db.prepare('SELECT id FROM coupons WHERE code = ?').get(order.coupon_code);
-      if (coupon) {
-        db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?').run(coupon.id);
-        db.prepare('INSERT OR IGNORE INTO coupon_usages (id, coupon_id, customer_id, order_id, discount_amount) VALUES (?, ?, ?, ?, ?)').run(
-          uuidv4(), coupon.id, order.customer_id || 'guest', order.id, order.discount_amount || 0
-        );
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      console.error(`[Payment Security] Signature mismatch for order ${order.id}`);
+      return res.status(400).json({ success: false, error: 'Payment signature verification failed' });
+    }
+
+    // 5. Confirm Payment Status directly with Razorpay API (for real configured credentials)
+    if (rzpConfig.keyId && rzpConfig.keySecret && !isTestEnv) {
+      try {
+        const Razorpay = require('razorpay');
+        const rzp = new Razorpay({ key_id: rzpConfig.keyId, key_secret: rzpConfig.keySecret });
+        const payment = await rzp.payments.fetch(cleanRzpPaymentId);
+
+        const check = validateGatewayPayment(payment, order, cleanRzpOrderId);
+        if (!check.valid) {
+          console.error(`[Payment Security] Gateway validation failed for order ${order.id}: ${check.error}`);
+          return res.status(400).json({ success: false, error: check.error });
+        }
+      } catch (apiErr) {
+        console.error(`[Payment Security] Failed to verify payment with Razorpay API for order ${order.id}:`, apiErr.message || 'API error');
+        const errMsg = (apiErr.error && apiErr.error.description) ? apiErr.error.description : (apiErr.message || 'Payment gateway verification error');
+        return res.status(400).json({ success: false, error: 'Razorpay gateway verification error: ' + errMsg });
       }
     }
+  } else if (isTestEnv) {
+    // Isolated Test Fixture (Only accessible in test environment, NEVER in production)
+    const testSecret = process.env.TEST_PAYMENT_SECRET || 'codelibrary_test_fixture_secret_2026';
+    const hmac = crypto.createHmac('sha256', testSecret);
+    hmac.update(`${cleanRzpOrderId}|${cleanRzpPaymentId}`);
+    const expectedSignature = hmac.digest('hex');
+
+    const sigBuf = Buffer.from(cleanRzpSignature, 'utf-8');
+    const expBuf = Buffer.from(expectedSignature, 'utf-8');
+
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      console.error(`[Payment Security] Test fixture signature mismatch for order ${order.id}`);
+      return res.status(400).json({ success: false, error: 'Test fixture signature verification failed' });
+    }
+
+    // In test environment, if test gateway payment mock is provided, validate through the exact same logic
+    if (req.body.test_gateway_payment) {
+      const check = validateGatewayPayment(req.body.test_gateway_payment, order, cleanRzpOrderId);
+      if (!check.valid) {
+        return res.status(400).json({ success: false, error: check.error });
+      }
+    }
+  } else {
+    // Production without configured Razorpay credentials: Must reject immediately
+    console.error('[Payment Security] Payment verification rejected: Razorpay credentials are not configured on server');
+    return res.status(500).json({ success: false, error: 'Payment gateway is not properly configured on server' });
+  }
+
+  // 6. Update Order to Paid (Strict transaction: idempotent, prevents duplicate coupon usage and conflicting payment IDs)
+  try {
+    db.exec('BEGIN IMMEDIATE;');
+    try {
+      const freshOrder = db.prepare('SELECT status, razorpay_payment_id FROM orders WHERE id = ?').get(order.id);
+      if (!freshOrder) {
+        throw new Error('Order record not found');
+      }
+
+      if (freshOrder.status === 'paid') {
+        if (freshOrder.razorpay_payment_id && freshOrder.razorpay_payment_id !== cleanRzpPaymentId) {
+          const err = new Error('Order is already marked as paid with a different payment ID');
+          err.statusCode = 400;
+          throw err;
+        }
+        // Already paid with identical payment ID - idempotent replay
+        db.exec('COMMIT;');
+      } else {
+        db.prepare(`
+          UPDATE orders 
+          SET status = 'paid', razorpay_payment_id = ?, razorpay_signature = ?, updated_at = CURRENT_TIMESTAMP 
+          WHERE id = ? AND status != 'paid'
+        `).run(cleanRzpPaymentId, cleanRzpSignature, order.id);
+
+        // Record coupon usage strictly once inside transaction
+        if (order.coupon_code) {
+          const coupon = db.prepare('SELECT id FROM coupons WHERE code = ?').get(order.coupon_code);
+          if (coupon) {
+            db.prepare('UPDATE coupons SET used_count = used_count + 1 WHERE id = ?').run(coupon.id);
+            db.prepare('INSERT OR IGNORE INTO coupon_usages (id, coupon_id, customer_id, order_id, discount_amount) VALUES (?, ?, ?, ?, ?)').run(
+              uuidv4(), coupon.id, order.customer_id || 'guest', order.id, order.discount_amount || 0
+            );
+          }
+        }
+        db.exec('COMMIT;');
+      }
+    } catch (innerErr) {
+      try { db.exec('ROLLBACK;'); } catch (rbErr) {}
+      throw innerErr;
+    }
+  } catch (txErr) {
+    if (txErr.statusCode === 400 || txErr.message.includes('different payment ID')) {
+      console.error(`[Payment Security] Verification conflict on order ${order.id}`);
+      return res.status(400).json({ success: false, error: txErr.message });
+    }
+    console.error(`[Payment Security] Database error updating order ${order.id}:`, txErr.message || txErr);
+    return res.status(500).json({ success: false, error: 'Database error processing order' });
   }
 
   // If user is currently logged in, associate order with their account
