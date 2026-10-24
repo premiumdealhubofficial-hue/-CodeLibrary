@@ -22,7 +22,41 @@
     t.src=v;s=b.getElementsByTagName(e)[0];
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1066027616254815');
+
+    (function() {
+      var ud = {};
+      try {
+        var s = JSON.parse(localStorage.getItem('codelibrary_customer_data') || 'null');
+        if (s && typeof s === 'object') {
+          if (s.email && typeof s.email === 'string') {
+            var em = s.email.trim().toLowerCase();
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) ud.em = em;
+          }
+          if (s.phone) {
+            var p = String(s.phone).replace(/\D/g, '').replace(/^0+/, '');
+            if (p.length === 10) p = '91' + p;
+            if (p.length >= 10 && p.length <= 15) ud.ph = p;
+          }
+          if (s.name && typeof s.name === 'string') {
+            var parts = s.name.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            if (parts[0]) {
+              var fn = parts[0].replace(/[^a-z]/g, '');
+              if (fn) ud.fn = fn;
+            }
+            if (parts.length > 1) {
+              var ln = parts.slice(1).join('').replace(/[^a-z]/g, '');
+              if (ln) ud.ln = ln;
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (Object.keys(ud).length > 0) {
+        fbq('init', '1066027616254815', ud);
+      } else {
+        fbq('init', '1066027616254815');
+      }
+    })();
     fbq('track', 'PageView');
     </script>
     <noscript><img height="1" width="1" style="display:none"
@@ -930,6 +964,6 @@
 
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <script src="js/hero.js?v=4.7"></script>
-    <script src="js/app.js?v=4.7"></script>
+    <script src="js/app.js?v=4.8"></script>
 </body>
 </html>

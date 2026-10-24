@@ -71,6 +71,73 @@ const MetaPixel = {
     }
   },
 
+  normalizeAdvancedMatching(data) {
+    if (!data || typeof data !== 'object') return {};
+    const out = {};
+
+    // 1. Email (em): lowercase, trimmed, valid format
+    if (data.email && typeof data.email === 'string') {
+      const em = data.email.trim().toLowerCase();
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+        out.em = em;
+      }
+    }
+
+    // 2. Phone (ph): digits only, country code (India 91 if 10 digits), no leading zeros
+    if (data.phone) {
+      let ph = String(data.phone).replace(/\D/g, '').replace(/^0+/, '');
+      if (ph.length === 10) {
+        ph = '91' + ph;
+      }
+      if (ph.length >= 10 && ph.length <= 15) {
+        out.ph = ph;
+      }
+    }
+
+    // 3. First Name (fn) and Last Name (ln): lowercase, letters only
+    if (data.name && typeof data.name === 'string') {
+      const parts = data.name.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      if (parts.length > 0) {
+        const fn = parts[0].replace(/[^a-z]/g, '');
+        if (fn) out.fn = fn;
+        if (parts.length > 1) {
+          const ln = parts.slice(1).join('').replace(/[^a-z]/g, '');
+          if (ln) out.ln = ln;
+        }
+      }
+    }
+
+    return out;
+  },
+
+  setCustomerData(customerInfo) {
+    if (!customerInfo || typeof customerInfo !== 'object') return;
+
+    let existing = {};
+    try {
+      existing = JSON.parse(localStorage.getItem('codelibrary_customer_data') || '{}');
+    } catch (e) {}
+
+    const merged = {
+      name: (customerInfo.name || existing.name || '').trim(),
+      email: (customerInfo.email || existing.email || '').trim().toLowerCase(),
+      phone: (customerInfo.phone || existing.phone || '').trim()
+    };
+
+    try {
+      localStorage.setItem('codelibrary_customer_data', JSON.stringify(merged));
+    } catch (e) {}
+
+    const advancedMatching = this.normalizeAdvancedMatching(merged);
+    if (typeof window.fbq === 'function' && Object.keys(advancedMatching).length > 0) {
+      try {
+        window.fbq('init', this.PIXEL_ID, advancedMatching);
+      } catch (err) {
+        // Safe non-blocking
+      }
+    }
+  },
+
   track(eventName, params = {}, options = {}) {
     if (typeof window.fbq !== 'function') {
       return;
@@ -1313,6 +1380,13 @@ async function executeCheckout() {
       }
     });
 
+    // Set customer data for Meta Pixel Manual Advanced Matching
+    MetaPixel.setCustomerData({
+      name: customerName,
+      email: customerEmail,
+      phone: customerPhone
+    });
+
     // Track InitiateCheckout via Meta Pixel
     MetaPixel.trackInitiateCheckout(state.cart, orderData.amount);
 
@@ -1387,6 +1461,13 @@ async function verifyAndCompleteOrder(paymentResponse, clientOrderId) {
     });
 
     if (verifyResult.success) {
+      // Set customer data for Meta Pixel Manual Advanced Matching
+      MetaPixel.setCustomerData({
+        name: verifyResult.customer_name,
+        email: verifyResult.customer_email,
+        phone: verifyResult.customer_phone
+      });
+
       // Track Purchase event via Meta Pixel (ONLY after server verified payment)
       MetaPixel.trackPurchase(verifyResult);
 
@@ -1750,6 +1831,13 @@ async function checkAuthStatus() {
     if (res.ok) {
       const data = await res.json();
       state.user = data.user || data;
+      if (state.user) {
+        MetaPixel.setCustomerData({
+          name: state.user.name,
+          email: state.user.email,
+          phone: state.user.phone
+        });
+      }
     } else {
       state.user = null;
     }
@@ -1932,6 +2020,13 @@ window.handleCustomerLogin = async function(e) {
     });
 
     state.user = res.user;
+    if (state.user) {
+      MetaPixel.setCustomerData({
+        name: state.user.name,
+        email: state.user.email,
+        phone: state.user.phone
+      });
+    }
     updateAuthUI();
     closeModals();
     showToast(`Welcome back, ${state.user.name || 'Student'}!`, 'success');
@@ -2007,6 +2102,13 @@ window.handleCustomerRegister = async function(e) {
     });
 
     state.user = res.user;
+    if (state.user) {
+      MetaPixel.setCustomerData({
+        name: state.user.name,
+        email: state.user.email,
+        phone: state.user.phone
+      });
+    }
     updateAuthUI();
     closeModals();
     showToast(`Account created! Welcome, ${state.user.name}!`, 'success');
@@ -2045,6 +2147,9 @@ window.handleCustomerLogout = async function() {
   } catch (e) {}
   state.user = null;
   state.myBooks = [];
+  try {
+    localStorage.removeItem('codelibrary_customer_data');
+  } catch (e) {}
   updateAuthUI();
   closeModals();
   showToast('You have been signed out.', 'info');
