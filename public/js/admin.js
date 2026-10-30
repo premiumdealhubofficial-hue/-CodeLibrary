@@ -143,11 +143,13 @@ const handleLogin = async (e) => {
   const usernameInput = document.getElementById('login-username');
   const passwordInput = document.getElementById('login-password');
   const totpInput = document.getElementById('login-totp');
+  const recoveryInput = document.getElementById('login-recovery-token');
   const btn = document.getElementById('btn-login');
 
   const username = (usernameInput?.value || '').trim();
   const password = (passwordInput?.value || '');
   const totp_code = (totpInput?.value || '').trim();
+  const recovery_token = (recoveryInput?.value || '').trim();
 
   if (!username) {
     renderLoginError('Please enter your admin username or email.');
@@ -169,17 +171,28 @@ const handleLogin = async (e) => {
   renderLoginError('');
 
   try {
-    const res = await adminApi('/api/admin/login', {
-      method: 'POST',
-      body: { username, password, totp_code }
-    });
+    let res;
+    if (recovery_token) {
+      res = await adminApi('/api/admin/recover-2fa', {
+        method: 'POST',
+        body: { username, password, recovery_token }
+      });
+      showAdminToast(res.message || '2FA successfully reset. Please re-enroll 2FA in Settings.', 'success');
+    } else {
+      res = await adminApi('/api/admin/login', {
+        method: 'POST',
+        body: { username, password, totp_code }
+      });
+    }
 
     if (res.token) {
       localStorage.setItem('admin_token', res.token);
     }
     adminState.admin = res.admin;
     showDashboard();
-    showAdminToast('Welcome to CodeLibrary Admin Panel', 'success');
+    if (!recovery_token) {
+      showAdminToast('Welcome to CodeLibrary Admin Panel', 'success');
+    }
   } catch (err) {
     if (err.require_2fa || (err.message && (err.message.includes('Two-factor') || err.message.includes('2FA')))) {
       const totpField = document.getElementById('totp-field');
@@ -258,6 +271,11 @@ const showLoginScreen = () => {
 
   const totpField = document.getElementById('totp-field');
   if (totpField) totpField.style.display = 'none';
+
+  const recoveryField = document.getElementById('recovery-field');
+  if (recoveryField) recoveryField.style.display = 'none';
+  const recoveryInput = document.getElementById('login-recovery-token');
+  if (recoveryInput) recoveryInput.value = '';
 
   const pwdInput = document.getElementById('login-password');
   const icon = document.getElementById('password-toggle-icon');
@@ -1505,6 +1523,19 @@ document.getElementById('btn-disable-2fa')?.addEventListener('click', async () =
 // Event Listeners
 document.getElementById('login-form')?.addEventListener('submit', handleLogin);
 document.getElementById('btn-toggle-password')?.addEventListener('click', togglePasswordVisibility);
+document.getElementById('btn-toggle-recovery')?.addEventListener('click', () => {
+  const recoveryField = document.getElementById('recovery-field');
+  const recoveryInput = document.getElementById('login-recovery-token');
+  const totpInput = document.getElementById('login-totp');
+  if (recoveryField) {
+    const isHidden = recoveryField.style.display === 'none' || !recoveryField.style.display;
+    recoveryField.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+      if (totpInput) totpInput.value = '';
+      recoveryInput?.focus();
+    }
+  }
+});
 document.getElementById('admin-logout')?.addEventListener('click', handleLogout);
 document.getElementById('contact-settings-form')?.addEventListener('submit', handleContactSettingsSubmit);
 

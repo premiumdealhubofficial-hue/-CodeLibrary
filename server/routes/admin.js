@@ -219,6 +219,160 @@ router.post('/login', adminLoginLimiter, async (req, res) => {
   }
 });
 
+// Emergency One-Time 2FA Recovery Endpoint
+router.post('/recover-2fa', adminLoginLimiter, async (req, res) => {
+  const { username, email, password, recovery_token } = req.body;
+  const loginIdentifier = String(username || email || '').trim();
+  const rawPassword = String(password || '');
+  const providedToken = String(recovery_token || '').trim();
+
+  // 1. Guard: Recovery mode must be explicitly configured with a strong token (>= 32 chars)
+  const configuredToken = (process.env.ADMIN_RECOVERY_TOKEN || '').trim();
+  if (!configuredToken || configuredToken.length < 32) {
+    return res.status(403).json({ error: 'Admin 2FA recovery is not currently enabled on this server.' });
+  }
+
+  if (!loginIdentifier || !rawPassword || !providedToken) {
+    return res.status(400).json({ error: 'Username, password, and recovery token are all required.' });
+  }
+
+  const clientIp = req.ip || '127.0.0.1';
+  const lockoutKey = `${clientIp}:${loginIdentifier.toLowerCase()}`;
+
+  // 2. Check lockout
+  const lockout = checkLoginLockout(lockoutKey);
+  if (lockout.locked) {
+    return res.status(429).json({
+      error: `Too many failed login attempts. Account access is temporarily locked for ${lockout.remainingMins} minute(s).`
+    });
+  }
+
+  const db = getDb();
+  try {
+    const configuredTokenHash = crypto.createHash('sha256').update(configuredToken).digest('hex');
+    const providedTokenHash = crypto.createHash('sha256').update(providedToken).digest('hex');
+
+    // 3. Check if this recovery token has already been consumed
+    const usedRecord = db.prepare('SELECT value FROM settings WHERE key = ?').get('consumed_recovery_token_hash');
+    if (usedRecord && usedRecord.value === configuredTokenHash) {
+      return res.status(400).json({
+        error: 'This recovery token has already been consumed. Please remove or update the token in Render.'
+      });
+    }
+
+    // Synchronize admin account credentials from environment variables if needed
+    const { syncAdminAccount } = require('../db/schema');
+    syncAdminAccount(db);
+
+    const configuredUsername = (config.ADMIN_USERNAME || 'admin').trim().toLowerCase();
+    const configuredEmail = (config.ADMIN_EMAIL || 'admin@codelibrary.in').trim().toLowerCase();
+    const configuredPassword = (config.ADMIN_PASSWORD || '').trim();
+
+    const lowerIdentifier = loginIdentifier.toLowerCase();
+
+    // Query admin by username or email (case-insensitive)
+    let admin = db.prepare('SELECT * FROM admins WHERE LOWER(username) = ? OR LOWER(email) = ?').get(lowerIdentifier, lowerIdentifier);
+    if (!admin && (lowerIdentifier === configuredUsername || lowerIdentifier === configuredEmail)) {
+      admin = db.prepare('SELECT * FROM admins LIMIT 1').get();
+    }
+
+    if (!admin) {
+      const rec = recordFailedLogin(lockoutKey);
+      const remainingAttempts = Math.max(0, 5 - rec.count);
+      return res.status(401).json({
+        error: remainingAttempts > 0
+          ? `Invalid admin credentials or recovery token. ${remainingAttempts} attempt(s) remaining.`
+          : 'Invalid admin credentials or recovery token. Account is now temporarily locked for 15 minutes.'
+      });
+    }
+
+    // 4. Password verification via bcrypt
+    let match = false;
+    if (admin.password_hash) {
+      match = await bcrypt.compare(rawPassword, admin.password_hash);
+      if (!match && rawPassword.trim() !== rawPassword) {
+        match = await bcrypt.compare(rawPassword.trim(), admin.password_hash);
+      }
+    }
+
+    if (!match && configuredPassword && (rawPassword === configuredPassword || rawPassword.trim() === configuredPassword)) {
+      match = true;
+      const newHash = bcrypt.hashSync(configuredPassword, 10);
+      db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(newHash, admin.id);
+    }
+
+    if (!match) {
+      const rec = recordFailedLogin(lockoutKey);
+      const remainingAttempts = Math.max(0, 5 - rec.count);
+      return res.status(401).json({
+        error: remainingAttempts > 0
+          ? `Invalid admin credentials or recovery token. ${remainingAttempts} attempt(s) remaining.`
+          : 'Invalid admin credentials or recovery token. Account is now temporarily locked for 15 minutes.'
+      });
+    }
+
+    // 5. Timing-safe comparison of token hashes
+    const tokenMatches = crypto.timingSafeEqual(
+      Buffer.from(providedTokenHash, 'hex'),
+      Buffer.from(configuredTokenHash, 'hex')
+    );
+
+    if (!tokenMatches) {
+      const rec = recordFailedLogin(lockoutKey);
+      const remainingAttempts = Math.max(0, 5 - rec.count);
+      logAudit(db, admin.id, '2FA_RECOVERY_FAILED', 'ADMIN', admin.id, { reason: 'token_mismatch' }, clientIp);
+      return res.status(401).json({
+        error: remainingAttempts > 0
+          ? `Invalid admin credentials or recovery token. ${remainingAttempts} attempt(s) remaining.`
+          : 'Invalid admin credentials or recovery token. Account is now temporarily locked for 15 minutes.'
+      });
+    }
+
+    // 6. Success: Clear failed login attempts
+    clearFailedLogin(lockoutKey);
+
+    // Reset 2FA strictly for this admin
+    db.prepare('UPDATE admins SET totp_enabled = 0, totp_secret = NULL WHERE id = ?').run(admin.id);
+
+    // Permanently record that this token hash was consumed
+    db.prepare('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+      .run('consumed_recovery_token_hash', configuredTokenHash);
+
+    logAudit(db, admin.id, '2FA_RECOVERY_SUCCESS', 'ADMIN', admin.id, { username: admin.username }, clientIp);
+
+    // Issue signed JWT token with 12h expiration
+    const token = jwt.sign(
+      { id: admin.id, email: admin.email, username: admin.username, role: 'admin' },
+      config.JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+
+    // Set secure cookie
+    res.cookie('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 12 * 3600000 // 12 hours
+    });
+
+    return res.json({
+      success: true,
+      token,
+      message: '2FA has been successfully reset. Please navigate to Settings to re-enroll your authenticator app.',
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        username: admin.username,
+        totp_enabled: false
+      }
+    });
+  } catch (err) {
+    console.error('Admin 2FA recovery error:', err.message);
+    return res.status(500).json({ error: 'Internal server error during 2FA recovery' });
+  }
+});
+
 // Admin Logout
 router.post('/logout', (req, res) => {
   res.clearCookie('admin_token');

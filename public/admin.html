@@ -49,6 +49,20 @@
           <small class="text-secondary" style="display:block; margin-top: 0.35rem; font-size: 0.78rem;">
             <i class="fas fa-info-circle"></i> Enter the 6-digit verification code from your Google Authenticator or 2FA app.
           </small>
+          <div id="recovery-toggle-wrap" style="margin-top: 0.65rem; text-align: right;">
+            <button type="button" id="btn-toggle-recovery" style="background: none; border: none; padding: 0; color: var(--accent-blue, #3b82f6); font-size: 0.8rem; cursor: pointer; text-decoration: underline;">
+              Lost 2FA app? Use Recovery Token
+            </button>
+          </div>
+        </div>
+
+        <!-- Emergency Recovery Token Field (Hidden by default) -->
+        <div id="recovery-field" class="form-group" style="display:none;">
+          <label for="login-recovery-token"><i class="fas fa-key"></i> Emergency Recovery Token</label>
+          <input type="password" id="login-recovery-token" class="form-control" placeholder="Enter 32+ character recovery token" autocomplete="off">
+          <small class="text-secondary" style="display:block; margin-top: 0.35rem; font-size: 0.78rem;">
+            <i class="fas fa-shield-alt"></i> Single-use emergency recovery token configured in Render environment.
+          </small>
         </div>
 
         <button type="submit" class="btn btn-primary btn-block" id="btn-login" style="margin-top: 1.25rem;">
@@ -886,6 +900,6 @@
   <!-- Toast Notification Container -->
   <div id="toast-container"></div>
 
-  <script src="/js/admin.js?v=5.1.0"></script>
+  <script src="/js/admin.js?v=5.2.0"></script>
 </body>
 </html>
